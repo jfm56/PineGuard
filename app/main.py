@@ -1,11 +1,13 @@
 from datetime import datetime
 from typing import Dict, List, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+from .logger import logger, log_action, log_api_request, log_error
 
 app = FastAPI(
     title="PineGuard API",
@@ -18,6 +20,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/")
 async def read_root():
+    log_action("Serving index page")
     return FileResponse("app/static/index.html")
 
 # Enable CORS
@@ -41,6 +44,7 @@ class RiskPrediction(BaseModel):
 
 @app.get("/health")
 async def health_check():
+    log_action("Health check request")
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 class DetailedRiskPrediction(RiskPrediction):
@@ -50,10 +54,18 @@ class DetailedRiskPrediction(RiskPrediction):
     mitigation_recommendations: List[Dict[str, Any]]
 
 @app.post("/api/v1/predict", response_model=DetailedRiskPrediction)
-async def predict_risk(area: Area, analysis_mode: str = "basic"):
+async def predict_risk(area: Area, analysis_mode: str = "basic", request: Request = None):
     """Predict wildfire risk for an area with specified analysis mode (basic or professional)"""
+    # Log API request
+    log_api_request(
+        method="POST",
+        endpoint="/api/v1/predict",
+        params={"analysis_mode": analysis_mode, "coordinates": area.coordinates}
+    )
+
     # Validate analysis mode
     if analysis_mode not in ["basic", "professional"]:
+        log_error(ValueError("Invalid analysis mode"), {"analysis_mode": analysis_mode})
         raise HTTPException(status_code=400, detail="Invalid analysis mode. Must be 'basic' or 'professional'")
     try:
         # Basic environmental factors (always included)
@@ -221,10 +233,15 @@ async def predict_risk(area: Area, analysis_mode: str = "basic"):
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
+        log_error(e, {
+            "analysis_mode": analysis_mode,
+            "coordinates": area.coordinates,
+        })
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/regions")
-async def get_regions():
+async def get_regions(request: Request = None):
+    log_api_request(method="GET", endpoint="/api/v1/regions")
     return {
         "regions": [
             {
@@ -244,4 +261,5 @@ async def get_regions():
 
 if __name__ == "__main__":
     import uvicorn
+    logger.info("Starting PineGuard application")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

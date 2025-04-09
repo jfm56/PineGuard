@@ -47,6 +47,8 @@ data/raw/
 data/processed/
 models/*.pkl
 .env
+logs/
+*.log
 
 # Jupyter Notebook
 .ipynb_checkpoints
