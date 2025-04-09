@@ -1,0 +1,56 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pineguard
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: pineguard
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pineguard-alerts
+  labels:
+    release: prometheus
+spec:
+  groups:
+  - name: pineguard
+    rules:
+    - alert: HighErrorRate
+      expr: |
+        rate(http_requests_total{status=~"5.."}[5m]) 
+        / 
+        rate(http_requests_total[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: High HTTP error rate
+        description: Error rate is above 10% for 5 minutes
+    - alert: HighLatency
+      expr: |
+        histogram_quantile(0.95, 
+          rate(http_request_duration_seconds_bucket[5m])
+        ) > 2
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: High latency
+        description: 95th percentile latency is above 2 seconds
+    - alert: HighRiskArea
+      expr: |
+        wildfire_risk_score > 0.8
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        summary: High wildfire risk detected
+        description: Area has maintained high risk score for 15 minutes

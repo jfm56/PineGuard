@@ -1,0 +1,69 @@
+# Version control
+.git
+.gitignore
+.github/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+.env
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+htmlcov/
+*.cover
+*.log
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project specific
+data/raw/
+data/processed/
+data/external/
+notebooks/
+tests/
+docs/
+README.md
+LICENSE
+
+# ML artifacts
+models/*.pkl
+models/*.h5
+models/*.pt
+models/*.onnx
+
+# Logs
+logs/
+*.log
+
+# Development
+*.ipynb_checkpoints
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Documentation
+docs/_build/
+site/
+
+# Local development settings
+.env.local
+.env.*.local
+
+# Docker
+.docker/
+docker-compose.override.yml

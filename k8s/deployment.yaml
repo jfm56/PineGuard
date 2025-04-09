@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pineguard
+  labels:
+    app: pineguard
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pineguard
+  template:
+    metadata:
+      labels:
+        app: pineguard
+    spec:
+      containers:
+      - name: pineguard
+        image: jmullen029/pineguard:latest
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+        env:
+        - name: NOAA_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-keys
+              key: noaa-api-key
+        - name: SENTINEL_HUB_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-keys
+              key: sentinel-hub-key
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pineguard
+spec:
+  selector:
+    app: pineguard
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: LoadBalancer
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: pineguard
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: pineguard
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
