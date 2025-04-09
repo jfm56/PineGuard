@@ -7,14 +7,14 @@ from pathlib import Path
 
 class StructureAnalyzer:
     """Analyzes risks related to structures, infrastructure, and human activity areas"""
-    
+
     def __init__(self, data_dir: Path):
         self.data_dir = data_dir
-        
+
     def analyze_building_vulnerability(self, buildings: gpd.GeoDataFrame) -> pd.DataFrame:
         """Analyze building vulnerability based on construction, age, and materials"""
         vulnerability_scores = pd.DataFrame(index=buildings.index)
-        
+
         # Building material risk factors
         material_risk = {
             'wood': 0.9,
@@ -23,21 +23,21 @@ class StructureAnalyzer:
             'metal': 0.3,
             'mixed': 0.6
         }
-        
+
         vulnerability_scores['material_risk'] = buildings['material'].map(material_risk)
-        
+
         # Age risk factor (older buildings might have less fire-resistant materials)
         current_year = pd.Timestamp.now().year
         vulnerability_scores['age_risk'] = (
             (current_year - buildings['year_built']) / 100
         ).clip(0, 1)
-        
+
         # Distance to water sources (fire hydrants, water bodies)
         vulnerability_scores['water_access'] = self._calculate_water_access(buildings)
-        
+
         # Defensible space around buildings
         vulnerability_scores['defensible_space'] = self._analyze_defensible_space(buildings)
-        
+
         # Calculate final vulnerability score
         weights = {
             'material_risk': 0.4,
@@ -45,15 +45,15 @@ class StructureAnalyzer:
             'water_access': 0.2,
             'defensible_space': 0.2
         }
-        
+
         vulnerability_scores['total_risk'] = sum(
-            vulnerability_scores[col] * weight 
+            vulnerability_scores[col] * weight
             for col, weight in weights.items()
         )
-        
+
         return vulnerability_scores
     
-    def analyze_camping_areas(self, 
+    def analyze_camping_areas(self,
                             camping_sites: gpd.GeoDataFrame,
                             current_conditions: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze risks specific to camping areas"""
@@ -64,41 +64,41 @@ class StructureAnalyzer:
             'evacuation_routes': [],
             'capacity': []
         }
-        
+
         for _, site in camping_sites.iterrows():
             # Basic site characteristics
             site_risk = self._calculate_base_site_risk(site)
-            
+
             # Evacuation analysis
             evacuation_routes = self._analyze_evacuation_routes(site)
-            
+
             # Capacity vs. emergency exit capability
             capacity_risk = self._analyze_capacity_risk(
                 site['capacity'],
                 len(evacuation_routes)
             )
-            
+
             # Amenity risks (fire pits, grills, etc.)
             amenity_risk = self._analyze_amenity_risks(site['amenities'])
-            
+
             # Combine risk factors
-            total_risk = (site_risk * 0.4 + 
+            total_risk = (site_risk * 0.4 +
                          capacity_risk * 0.3 +
                          amenity_risk * 0.3)
-            
+
             camping_risk['site_id'].append(site['site_id'])
             camping_risk['risk_score'].append(total_risk)
             camping_risk['risk_factors'].append(self._get_risk_factors(site))
             camping_risk['evacuation_routes'].append(evacuation_routes)
             camping_risk['capacity'].append(site['capacity'])
-        
+
         return pd.DataFrame(camping_risk)
     
-    def analyze_traffic_patterns(self, 
+    def analyze_traffic_patterns(self,
                                road_network: gpd.GeoDataFrame,
                                traffic_data: pd.DataFrame) -> Dict[str, Any]:
         """Analyze traffic patterns and their impact on fire risk and evacuation"""
-        
+
         # Merge road network with traffic data
         roads_with_traffic = road_network.merge(
             traffic_data,

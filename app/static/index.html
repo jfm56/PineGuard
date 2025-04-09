@@ -6,6 +6,9 @@
     <title>PineGuard - Wildfire Risk Prediction</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Bootstrap CSS and JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         #map { 
             height: 600px;
@@ -55,6 +58,39 @@
             border-color: #f5c6cb;
             color: #721c24;
         }
+        /* Menu styles */
+        .menu-card {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .menu-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .menu-card .card-body {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .menu-card i {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+
+        .menu-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .menu-card .card-body {
+            text-align: center;
+            padding: 2rem;
+        }
+        .menu-card i {
+            color: #2c3e50;
+        }
+
         /* Risk levels */
         .risk-high { background-color: #dc3545; color: white; }
         .risk-moderate { background-color: #ffc107; color: black; }
@@ -84,12 +120,116 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
             <a class="navbar-brand" href="#">PineGuard</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#">Dashboard</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="analysisDropdown" role="button" data-bs-toggle="dropdown">
+                            Analysis Tools
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="setAnalysisMode('basic')">Basic Analysis</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="setAnalysisMode('professional')">Professional Analysis</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="showAnalysisComparison()">Compare Versions</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dataDropdown" role="button" data-bs-toggle="dropdown">
+                            Data Sources
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="toggleLayer('satellite')">Satellite Imagery</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="toggleLayer('terrain')">Terrain</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="toggleLayer('vegetation')">Vegetation</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="toggleLayer('infrastructure')">Infrastructure</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item" id="proFeatures" style="display: none;">
+                        <a class="nav-link" href="#" onclick="showAdvancedTools()">Advanced Tools</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <span class="navbar-text me-3" id="versionBadge">
+                        <span class="badge bg-secondary">Basic Version</span>
+                    </span>
+                    <button class="btn btn-outline-success" onclick="upgradeToPro()">Upgrade to Pro</button>
+                </div>
+            </div>
         </div>
     </nav>
 
     <div class="container-fluid mt-4">
-        <div class="row">
+        <!-- Main Menu -->
+        <div id="mainMenu" class="row justify-content-center">
+            <div class="col-md-8 text-center">
+                <h1 class="display-4 mb-4">PineGuard</h1>
+                <p class="lead mb-5">Your Wildfire Safety Companion in the New Jersey Pinelands</p>
+                
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="card h-100 menu-card" onclick="showSection('mapView')">
+                            <div class="card-body">
+                                <i class="bi bi-map fs-1"></i>
+                                <h5 class="card-title mt-3">Interactive Map</h5>
+                                <p class="card-text">View wildfire risks and analyze environmental factors in your area</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card h-100 menu-card" onclick="showSection('hazardsList')">
+                            <div class="card-body">
+                                <i class="bi bi-exclamation-triangle fs-1"></i>
+                                <h5 class="card-title mt-3">List Hazards</h5>
+                                <p class="card-text">Current wildfire hazards and risk factors in the Pinelands region</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card h-100 menu-card" onclick="showSection('fireDanger')">
+                            <div class="card-body">
+                                <i class="bi bi-thermometer-high fs-1"></i>
+                                <h5 class="card-title mt-3">Current Fire Danger</h5>
+                                <p class="card-text">Real-time fire danger levels across New Jersey</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card h-100 menu-card" onclick="showSection('evacuationPlans')">
+                            <div class="card-body">
+                                <i class="bi bi-sign-turn-right fs-1"></i>
+                                <h5 class="card-title mt-3">Evacuation Plans</h5>
+                                <p class="card-text">Emergency evacuation routes and procedures</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card h-100 menu-card" onclick="showSection('preparedness')">
+                            <div class="card-body">
+                                <i class="bi bi-shield-check fs-1"></i>
+                                <h5 class="card-title mt-3">Fire Preparedness</h5>
+                                <p class="card-text">Learn how to prepare and protect your property</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map View -->
+        <div id="mapView" class="row" style="display: none;">
             <div class="col-md-9">
+                <button class="btn btn-secondary mb-3" onclick="showSection('mainMenu')"><i class="bi bi-arrow-left"></i> Back to Menu</button>
                 <div id="map">
                     <div class="map-loading">
                         <div class="loading-spinner"></div>
@@ -108,6 +248,57 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Hazards List -->
+        <div id="hazardsList" class="row" style="display: none;">
+            <div class="col-md-10 mx-auto">
+                <button class="btn btn-secondary mb-3" onclick="showSection('mainMenu')"><i class="bi bi-arrow-left"></i> Back to Menu</button>
+                <div class="card">
+                    <div class="card-body" id="hazardsContent">
+                        <h2>Loading hazards data...</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fire Danger -->
+        <div id="fireDanger" class="row" style="display: none;">
+            <div class="col-md-10 mx-auto">
+                <button class="btn btn-secondary mb-3" onclick="showSection('mainMenu')"><i class="bi bi-arrow-left"></i> Back to Menu</button>
+                <div class="card">
+                    <div class="card-body" id="fireDangerContent">
+                        <h2>Loading fire danger data...</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Evacuation Plans -->
+        <div id="evacuationPlans" class="row" style="display: none;">
+            <div class="col-md-10 mx-auto">
+                <button class="btn btn-secondary mb-3" onclick="showSection('mainMenu')"><i class="bi bi-arrow-left"></i> Back to Menu</button>
+                <div class="card">
+                    <div class="card-body" id="evacuationContent">
+                        <h2>Loading evacuation plans...</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preparedness Guide -->
+        <div id="preparedness" class="row" style="display: none;">
+            <div class="col-md-10 mx-auto">
+                <button class="btn btn-secondary mb-3" onclick="showSection('mainMenu')"><i class="bi bi-arrow-left"></i> Back to Menu</button>
+                <div class="card">
+                    <div class="card-body" id="preparednessContent">
+                        <h2>Loading preparedness guide...</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+                </div>
 
                 <div class="card mt-3">
                     <div class="card-header">
@@ -121,8 +312,461 @@
         </div>
     </div>
 
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js" crossorigin="anonymous"></script>
     <script>
+        // Version management
+        let currentVersion = 'basic';
+        const proFeatures = {
+            advancedAnalysis: false,
+            realTimeMonitoring: false,
+            customAlerts: false,
+            aiPredictions: false
+        };
+
+        // Section navigation
+        function showSection(sectionId) {
+            // Hide all sections
+            const sections = ['mainMenu', 'mapView', 'hazardsList', 'fireDanger', 'evacuationPlans', 'preparedness'];
+            sections.forEach(section => {
+                const element = document.getElementById(section);
+                if (element) {
+                    element.style.display = 'none';
+                }
+            });
+
+            // Show selected section
+            const selectedSection = document.getElementById(sectionId);
+            if (selectedSection) {
+                selectedSection.style.display = 'flex';
+                if (sectionId === 'mapView') {
+                    initializeMap();
+                } else if (sectionId === 'hazardsList') {
+                    loadHazardsList();
+                } else if (sectionId === 'fireDanger') {
+                    loadFireDangerData();
+                } else if (sectionId === 'evacuationPlans') {
+                    loadEvacuationPlans();
+                } else if (sectionId === 'preparedness') {
+                    loadPreparednessGuide();
+                }
+            }
+        }
+
+        async function loadHazardsList() {
+            const hazardsContent = document.getElementById('hazardsContent');
+            try {
+                // Simulated API call - replace with actual data fetch
+                const hazards = [
+                    { name: 'Dry Vegetation', risk: 'high', description: 'Large amounts of dry pine needles and brush' },
+                    { name: 'Wind Conditions', risk: 'moderate', description: 'Prevailing winds from the southwest' },
+                    { name: 'Drought Index', risk: 'high', description: 'Below average rainfall for the past 3 months' },
+                    { name: 'Lightning Activity', risk: 'low', description: 'Minimal thunderstorm activity forecast' }
+                ];
+
+                const hazardsHtml = hazards.map(hazard => {
+                    const riskClass = getRiskClass(hazard.risk);
+                    return `<div class="alert alert-${riskClass} mb-3">
+                        <h5 class="alert-heading">${hazard.name}</h5>
+                        <p class="mb-1">${hazard.description}</p>
+                        <span class="badge bg-${riskClass}">${hazard.risk.toUpperCase()} RISK</span>
+                    </div>`;
+                }).join('');
+                
+                hazardsContent.innerHTML = `<h2 class="mb-4">Current Hazards</h2>
+                    <div class="hazards-list">${hazardsHtml}</div>`;
+            } catch (error) {
+                hazardsContent.innerHTML = `<div class="alert alert-danger">Error loading hazards data: ${error.message}</div>`;
+            }
+        }
+
+        async function loadFireDangerData() {
+            const fireDangerContent = document.getElementById('fireDangerContent');
+            try {
+                // Simulated API call - replace with actual NJ Forest Fire Service data
+                const data = {
+                    currentLevel: 'high',
+                    timestamp: new Date(),
+                    regions: [
+                        { name: 'Northern NJ', level: 'moderate' },
+                        { name: 'Central NJ', level: 'high' },
+                        { name: 'Southern NJ', level: 'very high' },
+                        { name: 'Coastal Areas', level: 'moderate' }
+                    ]
+                };
+
+                const regionsHtml = data.regions.map(region => {
+                    const riskClass = getRiskClass(region.level);
+                    return `<div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">${region.name}</h5>
+                                <span class="badge bg-${riskClass}">${region.level.toUpperCase()}</span>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                const currentRiskClass = getRiskClass(data.currentLevel);
+                fireDangerContent.innerHTML = `<h2 class="mb-4">NJ Fire Danger Levels</h2>
+                    <div class="alert alert-${currentRiskClass} mb-4">
+                        <h4 class="alert-heading">Current State Level: ${data.currentLevel.toUpperCase()}</h4>
+                        <p>Last updated: ${data.timestamp.toLocaleString()}</p>
+                    </div>
+                    <div class="row">${regionsHtml}</div>`;
+            } catch (error) {
+                fireDangerContent.innerHTML = `<div class="alert alert-danger">Error loading fire danger data: ${error.message}</div>`;
+            }
+        }
+
+        async function loadEvacuationPlans() {
+            const evacuationContent = document.getElementById('evacuationContent');
+            try {
+                // Simulated data - replace with actual evacuation plans
+                const plans = {
+                    routes: [
+                        { name: 'Route 72 East', description: 'Primary evacuation route to coastal areas' },
+                        { name: 'Route 70 East', description: 'Alternative route to coastal areas' },
+                        { name: 'Garden State Parkway', description: 'North-South evacuation corridor' }
+                    ],
+                    shelters: [
+                        { name: 'Southern Regional High School', address: '90 Cedar Bridge Rd', capacity: 500 },
+                        { name: 'Pinelands Regional High School', address: '565 Nugentown Rd', capacity: 400 },
+                        { name: 'Lacey Township High School', address: '73 Haines St', capacity: 450 }
+                    ]
+                };
+
+                const routesHtml = plans.routes.map(route => {
+                    return `<div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">${route.name}</h5>
+                            <p class="card-text">${route.description}</p>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                const sheltersHtml = plans.shelters.map(shelter => {
+                    return `<div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">${shelter.name}</h5>
+                            <p class="card-text">${shelter.address}</p>
+                            <p class="card-text"><small class="text-muted">Capacity: ${shelter.capacity} people</small></p>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                evacuationContent.innerHTML = `<h2 class="mb-4">Evacuation Plans</h2>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h4>Evacuation Routes</h4>
+                            ${routesHtml}
+                        </div>
+                        <div class="col-md-6">
+                            <h4>Emergency Shelters</h4>
+                            ${sheltersHtml}
+                        </div>
+                    </div>`;
+            } catch (error) {
+                evacuationContent.innerHTML = `<div class="alert alert-danger">Error loading evacuation plans: ${error.message}</div>`;
+            }
+        }
+
+        async function loadPreparednessGuide() {
+            const preparednessContent = document.getElementById('preparednessContent');
+            try {
+                // Simulated data - replace with actual preparedness guidelines
+                const guide = {
+                    sections: [
+                        {
+                            title: 'Create a Defensible Space',
+                            steps: [
+                                'Clear vegetation within 30 feet of your home',
+                                'Remove dead plants and tree branches',
+                                'Keep grass short and well-watered',
+                                'Clear roof and gutters of debris'
+                            ]
+                        },
+                        {
+                            title: 'Emergency Supply Kit',
+                            steps: [
+                                'Three-day water supply (one gallon per person per day)',
+                                'Non-perishable food and manual can opener',
+                                'Battery-powered radio and extra batteries',
+                                'Flashlights and first aid kit',
+                                'Important documents in a fireproof container'
+                            ]
+                        },
+                        {
+                            title: 'Evacuation Plan',
+                            steps: [
+                                'Create a family communication plan',
+                                'Know multiple evacuation routes',
+                                'Prepare an evacuation checklist',
+                                'Have a plan for pets',
+                                'Identify meeting locations'
+                            ]
+                        }
+                    ]
+                };
+
+                const sectionsHtml = guide.sections.map((section, index) => {
+                    const stepsHtml = section.steps.map(step => {
+                        return `<li class="list-group-item">${step}</li>`;
+                    }).join('');
+
+                    const buttonClass = index === 0 ? '' : 'collapsed';
+                    const collapseClass = index === 0 ? 'show' : '';
+
+                    return `<div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button ${buttonClass}" type="button" data-bs-toggle="collapse" data-bs-target="#section${index}">
+                                ${section.title}
+                            </button>
+                        </h2>
+                        <div id="section${index}" class="accordion-collapse collapse ${collapseClass}" data-bs-parent="#preparednessAccordion">
+                            <div class="accordion-body">
+                                <ul class="list-group list-group-flush">${stepsHtml}</ul>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                preparednessContent.innerHTML = `<h2 class="mb-4">Fire Preparedness Guide</h2>
+                    <div class="accordion" id="preparednessAccordion">${sectionsHtml}</div>`;
+            } catch (error) {
+                preparednessContent.innerHTML = `<div class="alert alert-danger">Error loading preparedness guide: ${error.message}</div>`;
+            }
+        }
+
+        function getRiskClass(risk) {
+            switch (risk.toLowerCase()) {
+                case 'very high':
+                case 'high':
+                    return 'danger';
+                case 'moderate':
+                    return 'warning';
+                case 'low':
+                    return 'success';
+                default:
+                    return 'secondary';
+            }
+        }
+
+        // Map initialization
+        function initializeMap() {
+            console.log('Initializing map...');
+            if (typeof mapboxgl === 'undefined') {
+                showError('Map library failed to load. Please check your internet connection.');
+                return;
+            }
+
+            const defaultToken = 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
+            mapboxgl.accessToken = defaultToken;
+
+            try {
+                console.log('Creating map instance...');
+                const map = new mapboxgl.Map({
+                    container: 'map',
+                    style: 'mapbox://styles/mapbox/light-v11',
+                    center: [-74.5, 39.8],
+                    zoom: 9,
+                    maxBounds: [[-75.5, 38.8], [-73.5, 40.8]], // Restrict to NJ Pinelands area
+                    attributionControl: true,
+                    preserveDrawingBuffer: true
+                });
+
+                map.on('load', () => {
+                    console.log('Map loaded successfully');
+                    hideLoadingSpinner();
+                });
+
+                map.on('error', (e) => {
+                    console.error('Map error:', e);
+                    showError(`Map error: ${e.error ? e.error.message : 'Unknown error'}`);
+                });
+
+                // Add navigation controls
+                map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+                map.addControl(new mapboxgl.ScaleControl(), 'bottom-right');
+
+                return map;
+            } catch (error) {
+                console.error('Map initialization error:', error);
+                showError(`Failed to initialize map: ${error.message}`);
+                return null;
+            }
+        }
+
+        function showError(message) {
+            console.error(message);
+            const mapElement = document.getElementById('map');
+            if (mapElement) {
+                const loadingElement = mapElement.querySelector('.map-loading');
+                if (loadingElement) {
+                    loadingElement.style.display = 'none';
+                }
+                mapElement.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5>Map Error</h5>
+                        <p>${message}</p>
+                        <button class="btn btn-outline-danger btn-sm mt-2" onclick="window.location.reload()">Retry</button>
+                    </div>
+                `;
+            }
+        }
+
+        function hideLoadingSpinner() {
+            const loadingElement = document.querySelector('.map-loading');
+            if (loadingElement) {
+                loadingElement.style.display = 'none';
+            }
+        }
+
+        // Initialize map when the page loads
+        window.addEventListener('load', () => {
+            const map = initializeMap();
+            if (!map) {
+                showError('Failed to initialize map');
+            }
+        });
+
+        function setAnalysisMode(mode) {
+            currentVersion = mode;
+            const badge = document.getElementById('versionBadge').querySelector('.badge');
+            const proFeatures = document.getElementById('proFeatures');
+            const upgradeButton = document.querySelector('.btn-outline-success');
+
+            if (mode === 'professional') {
+                badge.textContent = 'Professional Version';
+                badge.classList.remove('bg-secondary');
+                badge.classList.add('bg-success');
+                proFeatures.style.display = 'block';
+                upgradeButton.style.display = 'none';
+                enableProFeatures();
+            } else {
+                badge.textContent = 'Basic Version';
+                badge.classList.remove('bg-success');
+                badge.classList.add('bg-secondary');
+                proFeatures.style.display = 'none';
+                upgradeButton.style.display = 'block';
+                disableProFeatures();
+            }
+        }
+
+        function showAnalysisComparison() {
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.id = 'comparisonModal';
+            modal.innerHTML = `
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Version Comparison</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Basic Version</h6>
+                                    <ul class="list-group">
+                                        <li class="list-group-item">Basic risk assessment</li>
+                                        <li class="list-group-item">Standard map layers</li>
+                                        <li class="list-group-item">Historical fire data</li>
+                                        <li class="list-group-item">Basic mitigation recommendations</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Professional Version</h6>
+                                    <ul class="list-group">
+                                        <li class="list-group-item">Advanced AI-powered risk analysis</li>
+                                        <li class="list-group-item">Real-time satellite monitoring</li>
+                                        <li class="list-group-item">Custom alert systems</li>
+                                        <li class="list-group-item">Detailed infrastructure analysis</li>
+                                        <li class="list-group-item">Advanced mitigation planning</li>
+                                        <li class="list-group-item">Priority response recommendations</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-success" onclick="upgradeToPro()">Upgrade to Pro</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            new bootstrap.Modal(modal).show();
+        }
+
+        function upgradeToPro() {
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.id = 'upgradeModal';
+            modal.innerHTML = `
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Upgrade to Professional</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <h6>Professional Features Include:</h6>
+                            <ul>
+                                <li>Advanced AI-powered risk analysis</li>
+                                <li>Real-time satellite monitoring</li>
+                                <li>Custom alert systems</li>
+                                <li>Detailed infrastructure analysis</li>
+                                <li>Advanced mitigation planning</li>
+                                <li>Priority response recommendations</li>
+                            </ul>
+                            <hr>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-success" onclick="processUpgrade('monthly')">Monthly Plan - $99/month</button>
+                                <button class="btn btn-success" onclick="processUpgrade('annual')">Annual Plan - $999/year</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            new bootstrap.Modal(modal).show();
+        }
+
+        function processUpgrade(plan) {
+            // Here you would typically integrate with a payment processor
+            setAnalysisMode('professional');
+            const upgradeModal = bootstrap.Modal.getInstance(document.getElementById('upgradeModal'));
+            if (upgradeModal) {
+                upgradeModal.hide();
+            }
+        }
+
+        function enableProFeatures() {
+            proFeatures.advancedAnalysis = true;
+            proFeatures.realTimeMonitoring = true;
+            proFeatures.customAlerts = true;
+            proFeatures.aiPredictions = true;
+            updateUIForProFeatures();
+        }
+
+        function disableProFeatures() {
+            proFeatures.advancedAnalysis = false;
+            proFeatures.realTimeMonitoring = false;
+            proFeatures.customAlerts = false;
+            proFeatures.aiPredictions = false;
+            updateUIForProFeatures();
+        }
+
+        function updateUIForProFeatures() {
+            // Update UI elements based on available features
+            const riskInfo = document.getElementById('risk-info');
+            if (proFeatures.advancedAnalysis) {
+                // Enable advanced analysis UI elements
+            } else {
+                // Show basic analysis UI elements
+            }
+        }
+
         // Check if Mapbox GL JS is available
         if (typeof mapboxgl === 'undefined') {
             console.error('Mapbox GL JS not loaded');
@@ -148,50 +792,70 @@
                 default: return 'secondary';
             }
         }
-        // Initialize map
-        console.log('Initializing map...');
-        // Default public demo token
-        const defaultToken = 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
-        mapboxgl.accessToken = defaultToken;
-        
-        let map;
-        try {
-            console.log('Creating map with Mapbox GL JS version:', mapboxgl.version);
-            map = new mapboxgl.Map({
-            container: 'map',
-            style: 'mapbox://styles/mapbox/navigation-day-v1',
-            center: [-74.5, 39.8],
-            zoom: 9,
-            maxBounds: [[-75.5, 38.8], [-73.5, 40.8]] // Restrict to NJ Pinelands area
-        });
+        // Wait for Mapbox GL JS to load
+        window.addEventListener('load', () => {
+            console.log('Initializing map...');
+            if (typeof mapboxgl === 'undefined') {
+                console.error('Mapbox GL JS not loaded');
+                showError('Map library failed to load. Please check your internet connection.');
+                return;
+            }
 
-        map.on('load', () => {
-            console.log('Map loaded successfully');
-            // Remove loading state
-            const loadingElement = document.querySelector('.map-loading');
-            if (loadingElement) {
-                loadingElement.style.display = 'none';
+            const defaultToken = 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
+            mapboxgl.accessToken = defaultToken;
+
+            try {
+                console.log('Creating map instance...');
+                const map = new mapboxgl.Map({
+                    container: 'map',
+                    style: 'mapbox://styles/mapbox/light-v11',
+                    center: [-74.5, 39.8],
+                    zoom: 9,
+                    maxBounds: [[-75.5, 38.8], [-73.5, 40.8]], // Restrict to NJ Pinelands area
+                    attributionControl: true,
+                    preserveDrawingBuffer: true
+                });
+
+                map.on('load', () => {
+                    console.log('Map loaded successfully');
+                    const loadingElement = document.querySelector('.map-loading');
+                    if (loadingElement) {
+                        loadingElement.style.display = 'none';
+                    }
+                });
+
+                map.on('error', (e) => {
+                    console.error('Map error:', e);
+                    showError(`Map error: ${e.error ? e.error.message : 'Unknown error'}`);
+                });
+
+                // Add navigation controls
+                map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+                map.addControl(new mapboxgl.ScaleControl(), 'bottom-right');
+            } catch (error) {
+                console.error('Map initialization error:', error);
+                showError(`Failed to initialize map: ${error.message}`);
             }
         });
 
-        // Test map access
-        fetch(`https://api.mapbox.com/v4/mapbox.satellite/0/0/0.png?access_token=${defaultToken}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Map access failed');
-            }
-            console.log('Mapbox access validated successfully');
-        })
-        .catch(error => {
-            console.error('Token validation error:', error);
+        function showError(message) {
+            console.error(message);
             const mapElement = document.getElementById('map');
-            const loadingElement = mapElement.querySelector('.map-loading');
-            if (loadingElement) {
-                loadingElement.style.display = 'none';
+            if (mapElement) {
+                const loadingElement = mapElement.querySelector('.map-loading');
+                if (loadingElement) {
+                    loadingElement.style.display = 'none';
+                }
+                mapElement.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5>Map Error</h5>
+                        <p>${message}</p>
+                        <button class="btn btn-outline-danger btn-sm mt-2" onclick="window.location.reload()">Retry</button>
+                    </div>
+                `;
             }
-            mapElement.innerHTML = `
-                <div class="alert alert-danger">
-                    <h5>Map Access Error</h5>
+        }
+
                     <p>Unable to validate map access. Please check your connection or contact support.</p>
                     <button class="btn btn-outline-danger btn-sm mt-2" onclick="window.location.reload()">Try Again</button>
                 </div>
@@ -209,18 +873,19 @@
             if (loadingElement) {
                 loadingElement.style.display = 'none';
             }
-            mapElement.innerHTML = `
-                <div class="alert alert-danger">
-                    <h5>Map Error</h5>
-                    <p>${e.error ? e.error.message : 'An unknown error occurred'}</p>
-                    <small>Please check console for more details.</small>
-                    <button class="btn btn-outline-danger btn-sm mt-2" onclick="window.location.reload()">Try Again</button>
-                </div>
-            `;
+            const errorMessage = e.error ? e.error.message : 'An unknown error occurred';
+            const errorHtml = `<div class="alert alert-danger">
+                <h5>Map Error</h5>
+                <p>${errorMessage}</p>
+                <small>Please check console for more details.</small>
+                <button class="btn btn-outline-danger btn-sm mt-2" onclick="window.location.reload()">Try Again</button>
+            </div>`;
+            mapElement.innerHTML = errorHtml;
         });
 
         // Wait for map style to load
         map.on('style.load', () => {
+            try {
             console.log('Map style loaded successfully');
             
             // Add terrain
@@ -315,92 +980,144 @@
             .then(response => response.json())
             .then(data => {
                 const riskInfo = document.getElementById('risk-info');
-                riskInfo.innerHTML = `
-                    <h6>Risk Analysis Results</h6>
-                    <p>Risk Score: <strong>${(data.risk_score * 100).toFixed(1)}%</strong></p>
-                    <p>Confidence: ${(data.confidence * 100).toFixed(1)}%</p>
-                    
-                    <h6 class="mt-4">Environmental Factors</h6>
-                    <div class="progress-list">
-                        ${Object.entries(data.environmental_factors).map(([factor, value]) => `
-                            <div class="factor-item">
-                                <label>${factor.charAt(0).toUpperCase() + factor.slice(1)}</label>
-                                <div class="progress">
-                                    <div class="progress-bar bg-${getColorClass(value)}" 
-                                         role="progressbar" 
-                                         style="width: ${(value * 100)}%">
-                                        ${(value * 100).toFixed(0)}%
-                                    </div>
-                                </div>
+                const riskScore = (data.risk_score * 100).toFixed(1);
+                const confidence = (data.confidence * 100).toFixed(1);
+
+                const envFactorsHtml = Object.entries(data.environmental_factors).map(([factor, value]) => {
+                    const colorClass = getColorClass(value);
+                    const percentage = (value * 100).toFixed(0);
+                    const label = factor.charAt(0).toUpperCase() + factor.slice(1);
+                    return `<div class="factor-item">
+                        <label>${label}</label>
+                        <div class="progress">
+                            <div class="progress-bar bg-${colorClass}" 
+                                 role="progressbar" 
+                                 style="width: ${percentage}%">
+                                ${percentage}%
                             </div>
-                        `).join('')}
-                    </div>
-
-                    <h6 class="mt-4">Historical Data</h6>
-                    <p>Fire Frequency: ${(data.historical_data.fire_frequency * 100).toFixed(1)}%</p>
-                    <p>Seasonal Risk: ${(data.historical_data.seasonal_risk * 100).toFixed(1)}%</p>
-                    <h6>Previous Fires:</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Year</th>
-                                    <th>Size (ha)</th>
-                                    <th>Cause</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${data.historical_data.previous_fires.map(fire => `
-                                    <tr>
-                                        <td>${fire.year}</td>
-                                        <td>${fire.size_hectares}</td>
-                                        <td>${fire.cause}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <h6 class="mt-4">Infrastructure Risk</h6>
-                    <div class="progress-list">
-                        ${Object.entries(data.infrastructure_risk).map(([factor, value]) => `
-                            <div class="factor-item">
-                                <label>${factor.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</label>
-                                <div class="progress">
-                                    <div class="progress-bar bg-${getColorClass(value)}" 
-                                         role="progressbar" 
-                                         style="width: ${(value * 100)}%">
-                                        ${(value * 100).toFixed(0)}%
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-
-                    <h6 class="mt-4">Mitigation Recommendations</h6>
-                    ${data.mitigation_recommendations.map(rec => `
-                        <div class="recommendation-card ${rec.priority}">
-                            <h6>${rec.action}</h6>
-                            <p>Priority: <span class="badge bg-${getPriorityColor(rec.priority)}">${rec.priority}</span></p>
-                            <p>Estimated Cost: $${rec.estimated_cost.toLocaleString()}</p>
-                            <p>Time Frame: ${rec.time_frame}</p>
                         </div>
-                    `).join('')}
+                    </div>`;
+                }).join('');
 
-                    <small class="text-muted mt-3 d-block">Last updated: ${new Date(data.timestamp).toLocaleString()}</small>
-                `;
+                riskInfo.innerHTML = `
+                    <div class="risk-analysis-container">
+                        <h6>Risk Analysis Results</h6>
+                        <p>Risk Score: <strong>${riskScore}%</strong></p>
+                        <p>Confidence: ${confidence}%</p>
+                        
+                        <h6 class="mt-4">Environmental Factors</h6>
+                        <div class="progress-list">${envFactorsHtml}</div>
+                    </div>`;
+
+                    const fireFrequency = (data.historical_data.fire_frequency * 100).toFixed(1);
+                    const seasonalRisk = (data.historical_data.seasonal_risk * 100).toFixed(1);
+                    
+                    const previousFiresHtml = data.historical_data.previous_fires.map((fire) => {
+                        return `<tr>
+                            <td>${fire.year}</td>
+                            <td>${fire.size_hectares}</td>
+                            <td>${fire.cause}</td>
+                        </tr>`;
+                    }).join('');
+
+                    const historicalHtml = `<div class="historical-data">
+                        <div>
+                            <h6 class="mt-4">Historical Data</h6>
+                            <p>Fire Frequency: ${fireFrequency}%</p>
+                            <p>Seasonal Risk: ${seasonalRisk}%</p>
+                            <h6>Previous Fires:</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Year</th>
+                                            <th>Size (ha)</th>
+                                            <th>Cause</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${previousFiresHtml}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>`;
+
+                    const infraRiskHtml = Object.entries(data.infrastructure_risk).map(([factor, value]) => {
+                        const colorClass = getColorClass(value);
+                        const percentage = (value * 100).toFixed(0);
+                        const label = factor.split('_').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                        return `<div class="factor-item">
+                            <div>
+                                <label>${label}</label>
+                                <div class="progress">
+                                    <div class="progress-bar bg-${colorClass}" 
+                                         role="progressbar" 
+                                         style="width: ${percentage}%">
+                                        ${percentage}%
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+                    }).join('');
+
+                    function getColorClass(value) {
+                        if (value >= 0.7) return 'danger';
+                        if (value >= 0.4) return 'warning';
+                        return 'success';
+                    }
+
+                    function getPriorityColor(priority) {
+                        switch (priority.toLowerCase()) {
+                            case 'high': return 'danger';
+                            case 'medium': return 'warning';
+                            case 'low': return 'success';
+                            default: return 'secondary';
+                        }
+                    }
+
+                    const mitigationHtml = data.mitigation_recommendations.map((rec) => {
+                        const priorityColor = getPriorityColor(rec.priority);
+                        return `<div class="recommendation-card ${rec.priority}">
+                            <div>
+                                <h6>${rec.action}</h6>
+                                <p>Priority: <span class="badge bg-${priorityColor}">${rec.priority}</span></p>
+                                <p>Estimated Cost: $${rec.estimated_cost.toLocaleString()}</p>
+                                <p>Time Frame: ${rec.time_frame}</p>
+                            </div>
+                        </div>`;
+                    }).join('');
+
+                    const lastUpdated = new Date(data.timestamp).toLocaleString();
+
+                    const finalHtml = `
+                        <div class="risk-analysis-container">
+                            <div class="risk-analysis-content">
+                                ${historicalHtml}
+                                <h6 class="mt-4">Infrastructure Risk</h6>
+                                <div class="progress-list">${infraRiskHtml}</div>
+
+                                <h6 class="mt-4">Mitigation Recommendations</h6>
+                                ${mitigationHtml}
+
+                                <small class="text-muted mt-3 d-block">Last updated: ${lastUpdated}</small>
+                            </div>
+                        </div>
+                    `;
+
+                    riskInfo.innerHTML = finalHtml;
             });
         });
-        } catch (error) {
+    } catch (error) {
             console.error('Error initializing map:', {
                 message: error.message,
                 stack: error.stack
             });
             document.getElementById('map').innerHTML = `
-                <div class="alert alert-danger">
-                    <h5>Error initializing map</h5>
-                    <p>${error.message}</p>
-                    <small>Please check console for more details.</small>
+                <div class="alert alert-danger error-container">
+                    <div class="error-content">
+                        <h5>Error initializing map</h5>
+                        <p>${error.message}</p>
+                        <small>Please check console for more details.</small>
+                    </div>
                 </div>
             `;
         }
