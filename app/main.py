@@ -1,19 +1,30 @@
 from datetime import datetime
 from typing import Dict, List, Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 
 from .logger import logger, log_action, log_api_request, log_error
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title="PineGuard API",
     description="Wildfire risk prediction and management system for the New Jersey Pinelands",
     version="1.0.0"
 )
+
+# Add rate limiter to app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -33,7 +44,7 @@ app.add_middleware(
 )
 
 class Area(BaseModel):
-    coordinates: List[List[float]]
+    area_geometry: Dict[str, Any]
     date: str = None
 
 class RiskPrediction(BaseModel):
@@ -43,9 +54,10 @@ class RiskPrediction(BaseModel):
     timestamp: str
 
 @app.get("/health")
-async def health_check():
+@limiter.limit("10/minute")
+async def health_check(request: Request):
     log_action("Health check request")
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    return {"status": "healthy"}
 
 class DetailedRiskPrediction(RiskPrediction):
     environmental_factors: Dict[str, float]
@@ -60,7 +72,7 @@ async def predict_risk(area: Area, analysis_mode: str = "basic", request: Reques
     log_api_request(
         method="POST",
         endpoint="/api/v1/predict",
-        params={"analysis_mode": analysis_mode, "coordinates": area.coordinates}
+        params={"analysis_mode": analysis_mode, "area": area.area_geometry}
     )
 
     # Validate analysis mode
@@ -73,6 +85,15 @@ async def predict_risk(area: Area, analysis_mode: str = "basic", request: Reques
             "temperature": 0.8,  # High temperature risk
             "humidity": 0.7,    # Low humidity risk
             "wind_speed": 0.6,  # Moderate wind risk
+        }
+        
+        # Calculate risk score based on environmental factors
+        risk_score = 0.75  # Example risk score
+        confidence = 0.85  # Example confidence
+        risk_factors = {
+            "temperature": 0.8,
+            "wind_speed": 0.7,
+            "vegetation": 0.6
         }
         
         # Add detailed factors for professional analysis
@@ -172,8 +193,8 @@ async def predict_risk(area: Area, analysis_mode: str = "basic", request: Reques
                     "action": "Clear firebreaks",
                     "location": {
                         "type": "LineString",
-                        "coordinates": [[area.coordinates[0][0], area.coordinates[0][1]],
-                                      [area.coordinates[0][0] + 0.1, area.coordinates[0][1]]]
+                        "coordinates": [[area.area_geometry["coordinates"][0][0][0], area.area_geometry["coordinates"][0][0][1]],
+                                      [area.area_geometry["coordinates"][0][0][0] + 0.1, area.area_geometry["coordinates"][0][0][1]]]
                     },
                     "estimated_cost": 50000,
                     "time_frame": "1 month",
@@ -215,8 +236,8 @@ async def predict_risk(area: Area, analysis_mode: str = "basic", request: Reques
                     "action": "Clear firebreaks",
                     "location": {
                         "type": "LineString",
-                        "coordinates": [[area.coordinates[0][0], area.coordinates[0][1]],
-                                      [area.coordinates[0][0] + 0.1, area.coordinates[0][1]]]
+                        "coordinates": [[area.area_geometry["coordinates"][0][0][0], area.area_geometry["coordinates"][0][0][1]],
+                                      [area.area_geometry["coordinates"][0][0][0] + 0.1, area.area_geometry["coordinates"][0][0][1]]]
                     },
                     "time_frame": "1 month"
                 }
@@ -257,6 +278,79 @@ async def get_regions(request: Request = None):
                 "risk_level": "moderate"
             }
         ]
+    }
+
+@app.post("/api/v1/log-error")
+async def log_frontend_error(request: Request):
+    try:
+        error_data = await request.json()
+        log_error(
+            Exception(error_data.get('message', 'Unknown frontend error')),
+            context={
+                'source': 'frontend',
+                'details': error_data.get('details'),
+                'stack': error_data.get('stack')
+            }
+        )
+        return {"status": "logged"}
+    except Exception as e:
+        log_error(e, {"context": "Error logging frontend error"})
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/camping-sites/{site_id}/risk")
+async def get_camping_site_risk(site_id: str, request: Request = None):
+    log_api_request(method="GET", endpoint=f"/api/v1/camping-sites/{site_id}/risk")
+    return {
+        "site_risk": 0.7,
+        "max_capacity": 100,
+        "evacuation_time": 15
+    }
+
+@app.post("/api/v1/structures/analyze")
+async def analyze_structures(request: Request):
+    data = await request.json()
+    log_api_request(method="POST", endpoint="/api/v1/structures/analyze", params=data)
+    return {
+        "buildings": [
+            {
+                "id": "B001",
+                "risk_score": 0.7,
+                "evacuation_priority": "high"
+            }
+        ]
+    }
+
+@app.get("/api/v1/traffic/analysis")
+async def analyze_traffic(area: str, request: Request = None):
+    log_api_request(method="GET", endpoint="/api/v1/traffic/analysis", params={"area": area})
+    return {
+        "current_flow": "moderate",
+        "evacuation_capacity": 1000,
+        "recommended_routes": [
+            {
+                "id": "R1",
+                "congestion": "low",
+                "estimated_time": 15
+            }
+        ]
+    }
+
+@app.get("/api/v1/weather/current")
+async def get_current_weather(request: Request = None):
+    """Get current weather conditions for the Pinelands area"""
+    log_api_request(method="GET", endpoint="/api/v1/weather/current")
+    
+    # These values are more typical for the New Jersey Pinelands
+    # Temperature range: 75-80°F in summer
+    # Humidity range: 50-70% (coastal influence)
+    # Wind speed: 5-10 mph average
+    return {
+        "temperature": 78,  # °F
+        "humidity": 65,    # %
+        "wind_speed": 8,   # mph
+        "conditions": "Partly Cloudy",
+        "timestamp": datetime.now().isoformat(),
+        "location": "New Jersey Pinelands"
     }
 
 if __name__ == "__main__":

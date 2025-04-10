@@ -1,0 +1,32 @@
+name: pineguard
+services:
+- name: web
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: jfm56/PineGuard
+  dockerfile_path: Dockerfile
+  http_port: 8080
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  routes:
+  - path: /
+  envs:
+  - key: PYTHONPATH
+    value: /app
+  - key: PYTHONUNBUFFERED
+    value: "1"
+  - key: DATA_DIR
+    value: /app/data
+  - key: MODEL_DIR
+    value: /app/models
+  - key: LOG_DIR
+    value: /app/logs
+  health_check:
+    http_path: /health
+    port: 8080
+    initial_delay_seconds: 30
+    period_seconds: 30
+    timeout_seconds: 10
+    success_threshold: 1
+    failure_threshold: 3

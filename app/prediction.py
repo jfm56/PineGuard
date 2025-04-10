@@ -100,8 +100,8 @@ class WildfirePredictor:
             camping_sites = self.data_loader.load_camping_sites(area_data)
 
             # Analyze structures and infrastructure
-            structure_risks = self.structure_analyzer.analyze_structures(buildings)
-            camping_risks = self.structure_analyzer.analyze_camping_sites(camping_sites)
+            structure_risks = self.structure_analyzer.analyze_building_vulnerability(buildings)
+            camping_risks = self.structure_analyzer.analyze_camping_areas(camping_sites, {'date': date})
             fuel_hazards = self.fuel_analyzer.analyze_fuel_hazards(area_data)
 
             results.update({
@@ -203,16 +203,15 @@ class WildfirePredictor:
             
             return X
         except Exception as e:
-            raise ValueError(f"Invalid data type in features: {str(e)}")
+            raise ValueError(f"Invalid data type in features: {str(e)}") from e
 
     def get_risk_category(self, risk_score: float) -> RiskCategory:
         """Convert risk score to risk category"""
         if risk_score < 0.3:
             return RiskCategory.LOW
-        elif risk_score < 0.7:
+        if risk_score < 0.7:
             return RiskCategory.MODERATE
-        else:
-            return RiskCategory.HIGH
+        return RiskCategory.HIGH
 
     def _generate_recommendations(self, analysis_results: Dict[str, Any]) -> List[str]:
         """Generate comprehensive risk mitigation recommendations"""

@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Dict, Optional, Union
+
+import joblib
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, Optional, Union
-import joblib
-from pathlib import Path
 
 class BaseModel(ABC):
     """Base class for all ML models in the application"""

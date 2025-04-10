@@ -6,13 +6,14 @@
     <title>PineGuard - Wildfire Risk Prediction</title>
     <!-- CSS Dependencies -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <!-- JavaScript Dependencies -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <style>
         #map { 
             height: 600px;
@@ -63,15 +64,29 @@
             color: #721c24;
         }
         /* Menu styles */
+        #menu-cards {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+        }
+
         .menu-card {
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.3s ease;
             overflow: hidden;
+            background: white;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 1rem;
+            flex: 1;
+            min-width: 250px;
+            max-width: 350px;
         }
 
         .menu-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-color: #3498db;
         }
 
         .menu-card .card-body {
@@ -81,1411 +96,1023 @@
         }
 
         .menu-card i {
-            margin-bottom: 1rem;
-        }
-
-        .hover-effect {
-            position: relative;
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            color: #3498db;
             transition: all 0.3s ease;
         }
 
-        .card-overlay {
-            position: absolute;
-            bottom: -40px;
-            left: 0;
-            right: 0;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
+        .menu-card:hover i {
+            transform: scale(1.1);
+        }
+
+        .menu-card .card-title {
+            color: #2c3e50;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .menu-card .card-text {
+            color: #7f8c8d;
+            font-size: 0.95rem;
+        }
+
+        .menu-card.active {
+            background: #f8f9fa;
+            border-color: #3498db;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.2);
+        }
+
+        .menu-card.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Map layer styles */
+        .leaflet-control-layers {
+            background: white;
             padding: 10px;
-            text-align: center;
-            transition: bottom 0.3s ease;
-        }
-
-        .hover-effect:hover .card-overlay {
-            bottom: 0;
-        }
-
-        .view-more {
-            font-size: 0.9rem;
-            font-weight: 500;
-        }
-
-        /* Risk levels */
-        .risk-high { background-color: #dc3545; color: white; }
-        .risk-moderate { background-color: #ffc107; color: black; }
-        .risk-low { background-color: #28a745; color: white; }
-
-        /* Progress bars */
-        .progress-list .factor-item { margin-bottom: 10px; }
-        .progress { height: 20px; background-color: #f8f9fa; }
-        .progress-bar { transition: width 0.6s ease; }
-        .bg-danger { background-color: #dc3545 !important; }
-        .bg-warning { background-color: #ffc107 !important; }
-        .bg-success { background-color: #28a745 !important; }
-
-        /* Recommendations */
-        .recommendation-card {
-            border: 1px solid #ddd;
             border-radius: 4px;
-            padding: 15px;
-            margin-bottom: 10px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
         }
-        .recommendation-card.high { border-left: 4px solid #dc3545; }
-        .recommendation-card.medium { border-left: 4px solid #ffc107; }
-        .recommendation-card.low { border-left: 4px solid #28a745; }
+
+        .leaflet-control-layers-list {
+            margin-bottom: 0;
+        }
+
+        .fire-station-icon,
+        .water-source-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .fire-station-icon i {
+            color: #dc3545;
+        }
+
+        .water-source-icon i {
+            color: #0d6efd;
+        }
+
+        /* Fire trail styles */
+        .fire-trail {
+            stroke-dasharray: 5, 10;
+            animation: dash 20s linear infinite;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -1000;
+            }
+        }
+
+        /* Fire history popup styles */
+        .fire-popup .leaflet-popup-content-wrapper {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .fire-popup .leaflet-popup-content {
+            margin: 15px;
+            min-width: 250px;
+        }
+
+        .fire-popup h4 {
+            color: #d32f2f;
+            margin: 0 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #ffcdd2;
+        }
+
+        .fire-popup p {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
+        .fire-popup ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+
+        .fire-popup li {
+            margin: 3px 0;
+            color: #424242;
+        }
+
+        .fire-popup strong {
+            color: #b71c1c;
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">PineGuard</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="#">Dashboard</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="analysisDropdown" role="button" data-bs-toggle="dropdown">
-                            Analysis Tools
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#" onclick="setAnalysisMode('basic')">Basic Analysis</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="setAnalysisMode('professional')">Professional Analysis</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" onclick="showAnalysisComparison()">Compare Versions</a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="dataDropdown" role="button" data-bs-toggle="dropdown">
-                            Data Sources
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#" onclick="toggleLayer('satellite')">Satellite Imagery</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="toggleLayer('terrain')">Terrain</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="toggleLayer('vegetation')">Vegetation</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" onclick="toggleLayer('infrastructure')">Infrastructure</a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item" id="proFeatures" style="display: none;">
-                        <a class="nav-link" href="#" onclick="showAdvancedTools()">Advanced Tools</a>
-                    </li>
-                </ul>
-                <div class="d-flex">
-                    <span class="navbar-text me-3" id="versionBadge">
-                        <span class="badge bg-secondary">Basic Version</span>
-                    </span>
-                    <button class="btn btn-outline-success" onclick="upgradeToPro()">Upgrade to Pro</button>
-                </div>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">PineGuard - Wildfire Risk Prediction</h1>
+        
+        <!-- Back to Menu Button -->
+        <div class="row mb-4" id="back-button" style="display: none;">
+            <div class="col">
+                <button class="btn btn-primary" onclick="backToMenu()">
+                    <i class="bi bi-arrow-left"></i> Back to Menu
+                </button>
             </div>
         </div>
-    </nav>
 
-    <div class="container-fluid mt-4">
-        <!-- Main Menu -->
-        <div id="mainMenu" class="row justify-content-center">
-            <div class="col-md-8 text-center">
-                <h1 class="display-4 mb-4">PineGuard</h1>
-                <p class="lead mb-5">Your Wildfire Safety Companion in the New Jersey Pinelands</p>
-                
-                <div class="row g-4">
-                    <div class="col-md-4">
-                        <div class="card h-100 menu-card" onclick="showSection('mapView')">
-                            <div class="card-body hover-effect" onclick="showSection('map')">
-                                <i class="bi bi-map fs-1 text-primary"></i>
-                                <h5 class="card-title mt-3">Interactive Map</h5>
-                                <p class="card-text">View wildfire risks and analyze environmental factors in your area</p>
-                                <div class="card-overlay">
-                                    <span class="view-more">Open Map →</span>
-                                </div>
-                            </div>
-                        </div>
+        <!-- Menu Row -->
+        <div class="row mb-4" id="menu-cards">
+            <div class="col-md-4 mb-4">
+                <div class="card menu-card active" id="interactive-map-card" onclick="handleMenuClick('interactive-map')">
+                    <div class="card-body">
+                        <i class="bi bi-map"></i>
+                        <h5 class="card-title">Interactive Map</h5>
+                        <p class="card-text">Explore and analyze wildfire risk in your area</p>
                     </div>
-                    
-                    <div class="col-md-4">
-                        <div class="card h-100 menu-card" onclick="showSection('hazardsList')">
-                            <div class="card-body hover-effect" onclick="showSection('hazards')">
-                                <i class="bi bi-exclamation-triangle fs-1 text-warning"></i>
-                                <h5 class="card-title mt-3">List Hazards</h5>
-                                <p class="card-text">Current wildfire hazards and risk factors in the Pinelands region</p>
-                                <div class="card-overlay">
-                                    <span class="view-more">View Hazards →</span>
-                                </div>
-                            </div>
-                        </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card menu-card" id="hazards-card" onclick="handleMenuClick('hazards')">
+                    <div class="card-body">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <h5 class="card-title">List Hazards</h5>
+                        <p class="card-text">View potential fire hazards in your region</p>
                     </div>
-                    
-                    <div class="col-md-4">
-                        <div class="card h-100 menu-card" onclick="showSection('fireDanger')">
-                            <div class="card-body hover-effect" onclick="showSection('fire-danger')">
-                                <i class="bi bi-thermometer-high fs-1 text-danger"></i>
-                                <h5 class="card-title mt-3">Current Fire Danger</h5>
-                                <p class="card-text">Real-time fire danger levels across New Jersey</p>
-                                <div class="card-overlay">
-                                    <span class="view-more">Check Status →</span>
-                                </div>
-                            </div>
-                        </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card menu-card" id="fire-danger-card" onclick="handleMenuClick('fire-danger')">
+                    <div class="card-body">
+                        <i class="bi bi-thermometer-high"></i>
+                        <h5 class="card-title">Current Fire Danger</h5>
+                        <p class="card-text">Check today's fire danger level</p>
                     </div>
-                    
-                    <div class="col-md-4">
-                        <div class="card h-100 menu-card" onclick="showSection('evacuationPlans')">
-                            <div class="card-body hover-effect" onclick="showSection('evacuation')">
-                                <i class="bi bi-sign-turn-right fs-1 text-info"></i>
-                                <h5 class="card-title mt-3">Evacuation Plans</h5>
-                                <p class="card-text">Emergency evacuation routes and procedures</p>
-                                <div class="card-overlay">
-                                    <span class="view-more">View Routes →</span>
-                                </div>
-                            </div>
-                        </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card menu-card" id="evacuation-card" onclick="handleMenuClick('evacuation')">
+                    <div class="card-body">
+                        <i class="bi bi-sign-turn-right"></i>
+                        <h5 class="card-title">Evacuation Plan</h5>
+                        <p class="card-text">View evacuation routes and safe zones</p>
                     </div>
-                    
-                    <div class="col-md-4">
-                        <div class="card h-100 menu-card" onclick="showSection('preparedness')">
-                            <div class="card-body hover-effect" onclick="showSection('preparedness')">
-                                <i class="bi bi-shield-check fs-1 text-success"></i>
-                                <h5 class="card-title mt-3">Fire Preparedness</h5>
-                                <p class="card-text">Learn how to prepare and protect your property</p>
-                                <div class="card-overlay">
-                                    <span class="view-more">View Details →</span>
-                                </div>
-                            </div>
-                        </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card menu-card" id="preparedness-card" onclick="handleMenuClick('preparedness')">
+                    <div class="card-body">
+                        <i class="bi bi-shield-check"></i>
+                        <h5 class="card-title">Fire Preparedness</h5>
+                        <p class="card-text">Learn how to prepare for wildfires</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Map View -->
-        <div id="mapView" class="row" style="display: none;">
-            <div class="col-md-9">
-                <button class="btn btn-secondary mb-3" onclick="showSection('mainMenu')"><i class="bi bi-arrow-left"></i> Back to Menu</button>
-                <div id="map">
+        <!-- Map Row -->
+        <div class="row mb-4">
+            <div class="col">
+                <div id="map" style="display: none;">
                     <div class="map-loading">
                         <div class="loading-spinner"></div>
                         <p>Loading map...</p>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+        </div>
+
+        <div class="row mb-4" id="analysis-results" style="display: none;">
+            <div class="col">
                 <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">Risk Analysis</h5>
-                    </div>
                     <div class="card-body">
-                        <div id="risk-info">
-                            <p>Select an area on the map to analyze wildfire risk.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Hazards List -->
-        <div id="hazardsList" class="row" style="display: none;">
-            <div class="col-md-10 mx-auto">
-                <button class="btn btn-secondary mb-3" onclick="showSection('mainMenu')"><i class="bi bi-arrow-left"></i> Back to Menu</button>
-                <div class="card">
-                    <div class="card-body" id="hazardsContent">
-                        <h2>Loading hazards data...</h2>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Fire Danger -->
-        <div id="fireDanger" class="row" style="display: none;">
-            <div class="col-md-10 mx-auto">
-                <button class="btn btn-secondary mb-3" onclick="showSection('mainMenu')"><i class="bi bi-arrow-left"></i> Back to Menu</button>
-                <div class="card">
-                    <div class="card-body" id="fireDangerContent">
-                        <h2>Loading fire danger data...</h2>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Evacuation Plans -->
-        <div id="evacuationPlans" class="row" style="display: none;">
-            <div class="col-md-10 mx-auto">
-                <button class="btn btn-secondary mb-3" onclick="showSection('mainMenu')"><i class="bi bi-arrow-left"></i> Back to Menu</button>
-                <div class="card">
-                    <div class="card-body" id="evacuationContent">
-                        <h2>Loading evacuation plans...</h2>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Preparedness Guide -->
-        <div id="preparedness" class="row" style="display: none;">
-            <div class="col-md-10 mx-auto">
-                <button class="btn btn-secondary mb-3" onclick="showSection('mainMenu')"><i class="bi bi-arrow-left"></i> Back to Menu</button>
-                <div class="card">
-                    <div class="card-body" id="preparednessContent">
-                        <h2>Loading preparedness guide...</h2>
-                    </div>
-                </div>
-            </div>
-        </div>
-                </div>
-
-                <div class="card mt-3">
-                    <div class="card-header">
-                        <h5 class="mb-0">High Risk Regions</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="regions-list"></div>
+                        <h5 class="card-title">Analysis Results</h5>
+                        <div id="results-content"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Main Script -->
     <script>
-        'use strict';
-
         // Global state
         const state = {
-            currentVersion: 'basic',
-            proFeatures: {
-                advancedAnalysis: false,
-                realTimeMonitoring: false,
-                customAlerts: false
-            },
             map: null,
             selectedArea: null,
-            draw: null
+            activeView: 'area-analysis'
         };
 
-        // Initialize the application
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeMap();
-            setupEventListeners();
-        });
+        function handleMenuClick(viewName) {
+            // Update active state
+            state.activeView = viewName;
 
-        // Event handlers
-        function setupEventListeners() {
-            document.getElementById('upgradeToPro').addEventListener('click', upgradeToPro);
-            document.getElementById('showAnalysisComparison').addEventListener('click', showAnalysisComparison);
-            document.getElementById('showAdvancedTools').addEventListener('click', showAdvancedTools);
+            // Hide menu cards and show back button
+            document.getElementById('menu-cards').style.display = 'none';
+            document.getElementById('back-button').style.display = 'block';
+
+            // Hide all content sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.style.display = 'none';
+            });
+
+            // Handle view changes
+            switch (viewName) {
+                case 'interactive-map':
+                    document.getElementById('map').style.display = 'block';
+                    document.getElementById('analysis-results').style.display = state.selectedArea ? 'block' : 'none';
+                    // Force a refresh of the map and center it on the Pinelands
+                    if (state.map) {
+                        setTimeout(() => {
+                            state.map.invalidateSize();
+                            state.map.setView([39.8, -74.5], 9);
+                        }, 100);
+                    }
+                    break;
+                case 'hazards':
+                    showHazardsList();
+                    break;
+                case 'fire-danger':
+                    showFireDanger();
+                    break;
+                case 'evacuation':
+                    showEvacuationPlan();
+                    break;
+                case 'preparedness':
+                    showPreparednessGuide();
+                    break;
+            }
         }
 
-        function updateArea(e) {
-            const data = state.draw.getAll();
-            if (data.features.length > 0) {
-                state.selectedArea = data;
-                analyzeArea(data);
-            }
-        };
+        function backToMenu() {
+            // Hide all content sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            document.getElementById('map').style.display = 'none';
+            document.getElementById('analysis-results').style.display = 'none';
 
-        function clearArea() {
-            state.selectedArea = null;
-            document.getElementById('riskInfo').innerHTML = '';
-        };
+            // Show menu cards and hide back button
+            document.getElementById('menu-cards').style.display = 'flex';
+            document.getElementById('back-button').style.display = 'none';
 
-        function analyzeArea(data) {
-            const riskInfo = document.getElementById('riskInfo');
-            riskInfo.innerHTML = '<div class="map-loading"><div class="loading-spinner"></div><p>Analyzing area...</p></div>';
-
-            fetch('/analyze', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    area: data,
-                    mode: state.currentVersion
-                })
-            })
-            .then(response => response.json())
-            .then(data => updateRiskInfo(data))
-            .catch(error => {
-                console.error('Error:', error);
-                riskInfo.innerHTML = `
-                    <div class="alert alert-danger">
-                        <h5>Analysis Error</h5>
-                        <p>${error.message}</p>
-                    </div>
-                `;
+            // Reset active state
+            state.activeView = null;
+            document.querySelectorAll('.menu-card').forEach(card => {
+                card.classList.remove('active');
             });
         }
 
-        // Initialize Mapbox map
-        function initializeMap() {
+        function showHazardsList() {
+            const contentDiv = document.getElementById('hazards-content') || createContentSection('hazards-content');
+            contentDiv.innerHTML = `
+                <div class="container mt-4">
+                    <h3>Potential Fire Hazards</h3>
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Dry Vegetation
+                            <span class="badge bg-danger rounded-pill">High Risk</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Dead Trees
+                            <span class="badge bg-warning rounded-pill">Medium Risk</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Overgrown Brush
+                            <span class="badge bg-warning rounded-pill">Medium Risk</span>
+                        </li>
+                    </ul>
+                </div>
+            `;
+            contentDiv.style.display = 'block';
+        }
+
+        async function showFireDanger() {
+            const contentDiv = document.getElementById('fire-danger-content') || createContentSection('fire-danger-content');
+            
             try {
-                mapboxgl.accessToken = 'your_mapbox_token_here';
-                const map = new mapboxgl.Map({
-                    container: 'map',
-                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
-                    center: [-74.5, 39.8],  // New Jersey Pinelands
-                    zoom: 9
-                });
-
-                state.map = map;
-
-                // Add map controls
-                map.addControl(new mapboxgl.NavigationControl());
-                map.addControl(new mapboxgl.FullscreenControl());
-
-                // Add draw controls
-                state.draw = new MapboxDraw({
-                    displayControlsDefault: false,
-                    controls: {
-                        polygon: true,
-                        trash: true
-                    }
-                });
-                map.addControl(state.draw);
-
-                // Setup map event listeners
-                map.on('draw.create', updateArea);
-                map.on('draw.delete', clearArea);
-                map.on('draw.update', updateArea);
-
-            } catch (error) {
-                console.error('Error initializing map:', error);
-                document.getElementById('map').innerHTML = `
-                    <div class="alert alert-danger">
-                        <h5>Error initializing map</h5>
-                        <p>${error.message}</p>
-                        <small>Please check console for more details.</small>
+                // Show loading state
+                contentDiv.innerHTML = `
+                    <div class="container mt-4">
+                        <h3>Current Fire Danger Level</h3>
+                        <div class="alert alert-info">
+                            <div class="loading-spinner"></div>
+                            <p class="text-center">Loading current conditions...</p>
+                        </div>
                     </div>
                 `;
-            }
-        }
-            try {
-                mapboxgl.accessToken = 'your_mapbox_token_here';
-                const map = new mapboxgl.Map({
-                    container: 'map',
-                    style: 'mapbox://styles/mapbox/satellite-streets-v12',
-                    center: [-74.5, 39.8],  // New Jersey Pinelands
-                    zoom: 9
-                });
+                contentDiv.style.display = 'block';
 
-                state.map = map;
+                // Fetch current weather data
+                const response = await fetch('/api/v1/weather/current');
+                if (!response.ok) throw new Error('Failed to fetch weather data');
+                const data = await response.json();
 
-                // Add map controls
-                map.addControl(new mapboxgl.NavigationControl());
-                map.addControl(new mapboxgl.FullscreenControl());
-
-                // Add draw controls
-                state.draw = new MapboxDraw({
-                    displayControlsDefault: false,
-                    controls: {
-                        polygon: true,
-                        trash: true
-                    }
-                });
-                map.addControl(draw);
-
-                // Setup map event listeners
-                map.on('draw.create', updateArea);
-                map.on('draw.delete', clearArea);
-                map.on('draw.update', updateArea);
-
-            } catch (error) {
-                handleMapError(error);
-            };
-
-        // Initialize map error handler
-        const handleMapError = (error) => {
-            console.error('Error initializing map:', error);
-            document.getElementById('map').innerHTML = `
-                <div class="alert alert-danger">
-                    <h5>Error initializing map</h5>
-                    <p>${error.message}</p>
-                    <small>Please check console for more details.</small>
-                </div>`;
-        };
-
-        // Update state with AI predictions
-        state.aiPredictions = false;
-
-
-        // Section navigation
-        function showSection(sectionId) {
-            // Hide all sections
-            const sections = ['mainMenu', 'mapView', 'hazardsList', 'fireDanger', 'evacuationPlans', 'preparedness'];
-            sections.forEach(section => {
-                const element = document.getElementById(section);
-                if (element) {
-                    element.style.display = 'none';
-                }
-            });
-
-            // Show selected section
-            const selectedSection = document.getElementById(sectionId);
-            if (selectedSection) {
-                selectedSection.style.display = 'flex';
-                if (sectionId === 'mapView') {
-                    initializeMap();
-                } else if (sectionId === 'hazardsList') {
-                    loadHazardsList();
-                } else if (sectionId === 'fireDanger') {
-                    loadFireDangerData();
-                } else if (sectionId === 'evacuationPlans') {
-                    loadEvacuationPlans();
-                } else if (sectionId === 'preparedness') {
-                    loadPreparednessGuide();
-                }
-            }
-        }
-
-        async function loadHazardsList() {
-            const hazardsContent = document.getElementById('hazardsContent');
-            try {
-                // Simulated API call - replace with actual data fetch
-                const hazards = [
-                    { name: 'Dry Vegetation', risk: 'high', description: 'Large amounts of dry pine needles and brush' },
-                    { name: 'Wind Conditions', risk: 'moderate', description: 'Prevailing winds from the southwest' },
-                    { name: 'Drought Index', risk: 'high', description: 'Below average rainfall for the past 3 months' },
-                    { name: 'Lightning Activity', risk: 'low', description: 'Minimal thunderstorm activity forecast' }
-                ];
-
-                const hazardsHtml = hazards.map(hazard => {
-                    const riskClass = getRiskClass(hazard.risk);
-                    return `<div class="alert alert-${riskClass} mb-3">
-                        <h5 class="alert-heading">${hazard.name}</h5>
-                        <p class="mb-1">${hazard.description}</p>
-                        <span class="badge bg-${riskClass}">${hazard.risk.toUpperCase()} RISK</span>
-                    </div>`;
-                }).join('');
+                // Determine danger level based on conditions
+                let dangerLevel = 'MODERATE';
+                let alertClass = 'alert-warning';
                 
-                hazardsContent.innerHTML = `<h2 class="mb-4">Current Hazards</h2>
-                    <div class="hazards-list">${hazardsHtml}</div>`;
-            } catch (error) {
-                hazardsContent.innerHTML = `<div class="alert alert-danger">Error loading hazards data: ${error.message}</div>`;
-            }
-        }
-
-        async function loadFireDangerData() {
-            const fireDangerContent = document.getElementById('fireDangerContent');
-            try {
-                // Simulated API call - replace with actual NJ Forest Fire Service data
-                const data = {
-                    currentLevel: 'high',
-                    timestamp: new Date(),
-                    regions: [
-                        { name: 'Northern NJ', level: 'moderate' },
-                        { name: 'Central NJ', level: 'high' },
-                        { name: 'Southern NJ', level: 'very high' },
-                        { name: 'Coastal Areas', level: 'moderate' }
-                    ]
-                };
-
-                const regionsHtml = data.regions.map(region => {
-                    const riskClass = getRiskClass(region.level);
-                    return `<div class="col-md-6 mb-3">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title">${region.name}</h5>
-                                <span class="badge bg-${riskClass}">${region.level.toUpperCase()}</span>
-                            </div>
-                        </div>
-                    </div>`;
-                }).join('');
-
-                const currentRiskClass = getRiskClass(data.currentLevel);
-                fireDangerContent.innerHTML = `<h2 class="mb-4">NJ Fire Danger Levels</h2>
-                    <div class="alert alert-${currentRiskClass} mb-4">
-                        <h4 class="alert-heading">Current State Level: ${data.currentLevel.toUpperCase()}</h4>
-                        <p>Last updated: ${data.timestamp.toLocaleString()}</p>
-                    </div>
-                    <div class="row">${regionsHtml}</div>`;
-            } catch (error) {
-                fireDangerContent.innerHTML = `<div class="alert alert-danger">Error loading fire danger data: ${error.message}</div>`;
-            }
-        }
-
-        async function loadEvacuationPlans() {
-            const evacuationContent = document.getElementById('evacuationContent');
-            try {
-                // Simulated data - replace with actual evacuation plans
-                const plans = {
-                    routes: [
-                        { name: 'Route 72 East', description: 'Primary evacuation route to coastal areas' },
-                        { name: 'Route 70 East', description: 'Alternative route to coastal areas' },
-                        { name: 'Garden State Parkway', description: 'North-South evacuation corridor' }
-                    ],
-                    shelters: [
-                        { name: 'Southern Regional High School', address: '90 Cedar Bridge Rd', capacity: 500 },
-                        { name: 'Pinelands Regional High School', address: '565 Nugentown Rd', capacity: 400 },
-                        { name: 'Lacey Township High School', address: '73 Haines St', capacity: 450 }
-                    ]
-                };
-
-                const routesHtml = plans.routes.map(route => {
-                    return `<div class="card mb-3">
-                        <div class="card-body">
-                            <h5 class="card-title">${route.name}</h5>
-                            <p class="card-text">${route.description}</p>
-                        </div>
-                    </div>`;
-                }).join('');
-
-                const sheltersHtml = plans.shelters.map(shelter => {
-                    return `<div class="card mb-3">
-                        <div class="card-body">
-                            <h5 class="card-title">${shelter.name}</h5>
-                            <p class="card-text">${shelter.address}</p>
-                            <p class="card-text"><small class="text-muted">Capacity: ${shelter.capacity} people</small></p>
-                        </div>
-                    </div>`;
-                }).join('');
-
-                evacuationContent.innerHTML = `<h2 class="mb-4">Evacuation Plans</h2>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h4>Evacuation Routes</h4>
-                            ${routesHtml}
-                        </div>
-                        <div class="col-md-6">
-                            <h4>Emergency Shelters</h4>
-                            ${sheltersHtml}
-                        </div>
-                    </div>`;
-            } catch (error) {
-                evacuationContent.innerHTML = `<div class="alert alert-danger">Error loading evacuation plans: ${error.message}</div>`;
-            }
-        }
-
-        async function loadPreparednessGuide() {
-            const preparednessContent = document.getElementById('preparednessContent');
-            try {
-                // Simulated data - replace with actual preparedness guidelines
-                const guide = {
-                    sections: [
-                        {
-                            title: 'Create a Defensible Space',
-                            steps: [
-                                'Clear vegetation within 30 feet of your home',
-                                'Remove dead plants and tree branches',
-                                'Keep grass short and well-watered',
-                                'Clear roof and gutters of debris'
-                            ]
-                        },
-                        {
-                            title: 'Emergency Supply Kit',
-                            steps: [
-                                'Three-day water supply (one gallon per person per day)',
-                                'Non-perishable food and manual can opener',
-                                'Battery-powered radio and extra batteries',
-                                'Flashlights and first aid kit',
-                                'Important documents in a fireproof container'
-                            ]
-                        },
-                        {
-                            title: 'Evacuation Plan',
-                            steps: [
-                                'Create a family communication plan',
-                                'Know multiple evacuation routes',
-                                'Prepare an evacuation checklist',
-                                'Have a plan for pets',
-                                'Identify meeting locations'
-                            ]
-                        }
-                    ]
-                };
-
-                const sectionsHtml = guide.sections.map((section, index) => {
-                    const stepsHtml = section.steps.map(step => {
-                        return `<li class="list-group-item">${step}</li>`;
-                    }).join('');
-
-                    const buttonClass = index === 0 ? '' : 'collapsed';
-                    const collapseClass = index === 0 ? 'show' : '';
-
-                    return `<div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button ${buttonClass}" type="button" data-bs-toggle="collapse" data-bs-target="#section${index}">
-                                ${section.title}
-                            </button>
-                        </h2>
-                        <div id="section${index}" class="accordion-collapse collapse ${collapseClass}" data-bs-parent="#preparednessAccordion">
-                            <div class="accordion-body">
-                                <ul class="list-group list-group-flush">${stepsHtml}</ul>
-                            </div>
-                        </div>
-                    </div>`;
-                }).join('');
-
-                preparednessContent.innerHTML = `<h2 class="mb-4">Fire Preparedness Guide</h2>
-                    <div class="accordion" id="preparednessAccordion">${sectionsHtml}</div>`;
-            } catch (error) {
-                preparednessContent.innerHTML = `<div class="alert alert-danger">Error loading preparedness guide: ${error.message}</div>`;
-            }
-        }
-
-        function getRiskClass(risk) {
-            switch (risk.toLowerCase()) {
-                case 'very high':
-                case 'high':
-                    return 'danger';
-                case 'moderate':
-                    return 'warning';
-                case 'low':
-                    return 'success';
-                default:
-                    return 'secondary';
-            }
-        }
-
-        // Map initialization
-        function initializeMap() {
-            console.log('Initializing map...');
-            if (typeof mapboxgl === 'undefined') {
-                showError('Map library failed to load. Please check your internet connection.');
-                return;
-            }
-
-            const defaultToken = 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
-            mapboxgl.accessToken = defaultToken;
-
-            try {
-                console.log('Creating map instance...');
-                const map = new mapboxgl.Map({
-                    container: 'map',
-                    style: 'mapbox://styles/mapbox/light-v11',
-                    center: [-74.5, 39.8],
-                    zoom: 9,
-                    maxBounds: [[-75.5, 38.8], [-73.5, 40.8]], // Restrict to NJ Pinelands area
-                    attributionControl: true,
-                    preserveDrawingBuffer: true
-                });
-
-                map.on('load', () => {
-                    console.log('Map loaded successfully');
-                    hideLoadingSpinner();
-                });
-
-                map.on('error', (e) => {
-                    console.error('Map error:', e);
-                    showError(`Map error: ${e.error ? e.error.message : 'Unknown error'}`);
-                });
-
-                // Add navigation controls
-                map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-                map.addControl(new mapboxgl.ScaleControl(), 'bottom-right');
-
-                return map;
-            } catch (error) {
-                console.error('Map initialization error:', error);
-                showError(`Failed to initialize map: ${error.message}`);
-                return null;
-            }
-        }
-
-        function showError(message) {
-            console.error(message);
-            const mapElement = document.getElementById('map');
-            if (mapElement) {
-                const loadingElement = mapElement.querySelector('.map-loading');
-                if (loadingElement) {
-                    loadingElement.style.display = 'none';
+                if (data.temperature > 85 || data.humidity < 30 || data.wind_speed > 15) {
+                    dangerLevel = 'HIGH';
+                    alertClass = 'alert-danger';
+                } else if (data.temperature < 75 && data.humidity > 60 && data.wind_speed < 10) {
+                    dangerLevel = 'LOW';
+                    alertClass = 'alert-success';
                 }
-                mapElement.innerHTML = `
-                    <div class="alert alert-danger">
-                        <h5>Map Error</h5>
-                        <p>${message}</p>
-                        <button class="btn btn-outline-danger btn-sm mt-2" onclick="window.location.reload()">Retry</button>
+
+                // Update the content
+                contentDiv.innerHTML = `
+                    <div class="container mt-4">
+                        <h3>Current Fire Danger Level</h3>
+                        <div class="alert ${alertClass}">
+                            <h4><i class="bi bi-thermometer-high"></i> ${dangerLevel}</h4>
+                            <p>Current conditions for ${data.location}</p>
+                            <ul>
+                                <li>Temperature: ${data.temperature}°F</li>
+                                <li>Humidity: ${data.humidity}%</li>
+                                <li>Wind Speed: ${data.wind_speed} mph</li>
+                                <li>Conditions: ${data.conditions}</li>
+                            </ul>
+                            <small class="text-muted">Last updated: ${new Date(data.timestamp).toLocaleString()}</small>
+                        </div>
                     </div>
                 `;
+            } catch (error) {
+                console.error('Error fetching weather data:', error);
+                contentDiv.innerHTML = `
+                    <div class="container mt-4">
+                        <h3>Current Fire Danger Level</h3>
+                        <div class="alert alert-danger">
+                            <h4><i class="bi bi-exclamation-triangle"></i> Error</h4>
+                            <p>Unable to fetch current conditions. Please try again later.</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function showEvacuationPlan() {
+            const contentDiv = document.getElementById('evacuation-content') || createContentSection('evacuation-content');
+            contentDiv.innerHTML = `
+                <div class="container mt-4">
+                    <h3>Evacuation Routes and Safe Zones</h3>
+                    <div class="alert alert-info">
+                        <h4>Primary Evacuation Routes</h4>
+                        <ul>
+                            <li>Route 1: North on Pine Road to Safe Zone A</li>
+                            <li>Route 2: East on Oak Street to Safe Zone B</li>
+                            <li>Route 3: West on Maple Avenue to Safe Zone C</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            contentDiv.style.display = 'block';
+        }
+
+        function showPreparednessGuide() {
+            const contentDiv = document.getElementById('preparedness-content') || createContentSection('preparedness-content');
+            contentDiv.innerHTML = `
+                <div class="container mt-4">
+                    <h3>Fire Preparedness Guide</h3>
+                    <div class="card-deck">
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <h5>Create a Defensible Space</h5>
+                                <ul>
+                                    <li>Clear vegetation 30 feet around your home</li>
+                                    <li>Remove dead plants and trees</li>
+                                    <li>Keep grass short and watered</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <h5>Emergency Kit Checklist</h5>
+                                <ul>
+                                    <li>Water and non-perishable food</li>
+                                    <li>First aid supplies</li>
+                                    <li>Battery-powered radio</li>
+                                    <li>Important documents</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            contentDiv.style.display = 'block';
+        }
+
+        function createContentSection(id) {
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = 'content-section';
+            document.querySelector('.container').appendChild(div);
+            return div;
+        }
+
+        // Utility functions
+        async function logError(error, details = {}) {
+            try {
+                await fetch('/api/v1/log-error', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: error.message || String(error),
+                        stack: error.stack,
+                        details: details
+                    })
+                });
+            } catch (e) {
+                console.error('Failed to log error:', e);
+            }
+        }
+
+        function showError(message, error = null) {
+            const errorHtml = `
+                <div class="alert alert-danger" role="alert">
+                    <h5>Error</h5>
+                    <p>${message}</p>
+                </div>
+            `;
+            document.getElementById('map').innerHTML = errorHtml;
+
+            if (error) {
+                logError(error, {
+                    displayedMessage: message,
+                    context: 'map_error'
+                });
             }
         }
 
         function hideLoadingSpinner() {
-            const loadingElement = document.querySelector('.map-loading');
-            if (loadingElement) {
-                loadingElement.style.display = 'none';
+            const spinner = document.querySelector('.map-loading');
+            if (spinner) {
+                spinner.style.display = 'none';
+            }
+        }
+
+        function showLoadingSpinner() {
+            const spinner = document.querySelector('.map-loading');
+            if (spinner) {
+                spinner.style.display = 'block';
+            }
+        }
+
+        // Create a square of coordinates around a center point
+        function createSquareCoordinates(centerLng, centerLat, sideLength) {
+            // Convert side length from kilometers to degrees
+            // Use more accurate conversion based on latitude
+            const latDegreeLength = sideLength / 111.32; // 1 degree latitude = 111.32 km
+            const lngDegreeLength = sideLength / (111.32 * Math.cos(centerLat * (Math.PI / 180))); // Adjust for latitude
+            
+            const halfLatSide = latDegreeLength / 2;
+            const halfLngSide = lngDegreeLength / 2;
+            
+            return [
+                [centerLng - halfLngSide, centerLat - halfLatSide],  // Bottom left
+                [centerLng + halfLngSide, centerLat - halfLatSide],  // Bottom right
+                [centerLng + halfLngSide, centerLat + halfLatSide],  // Top right
+                [centerLng - halfLngSide, centerLat + halfLatSide],  // Top left
+                [centerLng - halfLngSide, centerLat - halfLatSide]   // Back to start
+            ];
+        }
+
+        // Analyze the selected area
+        async function analyzeArea(coordinates) {
+            try {
+                showLoadingSpinner();
+                
+                const response = await fetch('/api/v1/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        area_geometry: {
+                            type: 'Polygon',
+                            coordinates: [coordinates]
+                        },
+                        analysis_mode: 'basic'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Display results
+                const resultsDiv = document.getElementById('analysis-results');
+                const resultsContent = document.getElementById('results-content');
+                
+                // Default values if data is incomplete
+                const riskLevel = data.risk_level || 'low';
+                const confidence = data.confidence || 0;
+                const factors = Array.isArray(data.factors) ? data.factors : [];
+                
+                // Determine alert class based on risk level
+                let alertClass = 'alert-success';
+                if (riskLevel.toLowerCase() === 'high') {
+                    alertClass = 'alert-danger';
+                } else if (riskLevel.toLowerCase() === 'moderate') {
+                    alertClass = 'alert-warning';
+                }
+                
+                resultsContent.innerHTML = `
+                    <div class="alert ${alertClass}">
+                        <h4>Risk Level: ${riskLevel.toUpperCase()}</h4>
+                        <p>Confidence: ${(confidence * 100).toFixed(1)}%</p>
+                    </div>
+                    <div class="mt-3">
+                        <h5>Contributing Factors:</h5>
+                        <ul>
+                            ${factors.map(factor => `<li>${factor}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+                
+                resultsDiv.style.display = 'block';
+                hideLoadingSpinner();
+                
+            } catch (error) {
+                console.error('Error analyzing area:', {
+                    message: error.message,
+                    stack: error.stack,
+                    details: JSON.stringify(error, ['message', 'name', 'stack'], 2)
+                });
+                showError(`Error analyzing area: ${error.message}`);
+                hideLoadingSpinner();
             }
         }
 
         // Initialize map when the page loads
-        window.addEventListener('load', () => {
-            const map = initializeMap();
-            if (!map) {
-                showError('Failed to initialize map');
-            }
-        });
+        // Initialize map layers with sample data
+        function initializeMapLayers(overlays) {
+            // Add fire stations (verified locations in the Pinelands)
+            const fireStations = [
+                { name: 'New Lisbon Fire Company', coords: [39.9654, -74.6283], type: 'Main', equipment: '2 Engines, 1 Tanker' },
+                { name: 'Indian Mills Fire Company', coords: [39.7823, -74.7477], type: 'Main', equipment: '3 Engines, 1 Brush Truck' },
+                { name: 'Chatsworth Fire Company', coords: [39.8352, -74.5367], type: 'Main', equipment: '2 Engines, 2 Brush Trucks' },
+                { name: 'Green Bank Fire Company', coords: [39.6241, -74.5594], type: 'Satellite', equipment: '1 Engine, 1 Brush Truck' },
+                { name: 'Jenkins Fire Company', coords: [39.7012, -74.5312], type: 'Main', equipment: '2 Engines, 1 Tanker' }
+            ];
 
-        function setAnalysisMode(mode) {
-            currentVersion = mode;
-            const badge = document.getElementById('versionBadge').querySelector('.badge');
-            const proFeatures = document.getElementById('proFeatures');
-            const upgradeButton = document.querySelector('.btn-outline-success');
+            fireStations.forEach(station => {
+                const marker = L.marker(station.coords, {
+                    icon: L.divIcon({
+                        className: 'fire-station-icon',
+                        html: '<i class="bi bi-building-fill"></i>',
+                        iconSize: [20, 20]
+                    })
+                });
+                marker.bindPopup(`<b>${station.name}</b><br>Type: ${station.type}<br>Equipment: ${station.equipment}`);
+                overlays['Fire Stations'].addLayer(marker);
+            });
 
-            if (mode === 'professional') {
-                badge.textContent = 'Professional Version';
-                badge.classList.remove('bg-secondary');
-                badge.classList.add('bg-success');
-                proFeatures.style.display = 'block';
-                upgradeButton.style.display = 'none';
-                enableProFeatures();
-            } else {
-                badge.textContent = 'Basic Version';
-                badge.classList.remove('bg-success');
-                badge.classList.add('bg-secondary');
-                proFeatures.style.display = 'none';
-                upgradeButton.style.display = 'block';
-                disableProFeatures();
-            }
-        }
+            // Add water sources (verified locations)
+            const waterSources = [
+                { name: 'Pakim Pond', coords: [39.8234, -74.5312], type: 'Natural Pond', capacity: '250,000 gal', access: 'Direct' },
+                { name: 'Chatsworth Lake', coords: [39.8352, -74.5367], type: 'Lake', capacity: '2,000,000 gal', access: 'Boat Ramp' },
+                { name: 'Deep Hollow Pond', coords: [39.7823, -74.5477], type: 'Pond', capacity: '300,000 gal', access: 'Direct' },
+                { name: 'Harrisville Pond', coords: [39.6641, -74.5294], type: 'Lake', capacity: '1,500,000 gal', access: 'Multiple Points' },
+                { name: 'Oswego Lake', coords: [39.7112, -74.5212], type: 'Lake', capacity: '3,000,000 gal', access: 'Multiple Points' },
+                { name: 'Wells Mills Lake', coords: [39.7534, -74.3812], type: 'Lake', capacity: '1,800,000 gal', access: 'Boat Ramp' }
+            ];
 
-        function showAnalysisComparison() {
-            const modal = document.createElement('div');
-            modal.className = 'modal fade';
-            modal.id = 'comparisonModal';
-            modal.innerHTML = `
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Version Comparison</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <h6>Basic Version</h6>
-                                    <ul class="list-group">
-                                        <li class="list-group-item">Basic risk assessment</li>
-                                        <li class="list-group-item">Standard map layers</li>
-                                        <li class="list-group-item">Historical fire data</li>
-                                        <li class="list-group-item">Basic mitigation recommendations</li>
-                                    </ul>
-                                </div>
-                                <div class="col-md-6">
-                                    <h6>Professional Version</h6>
-                                    <ul class="list-group">
-                                        <li class="list-group-item">Advanced AI-powered risk analysis</li>
-                                        <li class="list-group-item">Real-time satellite monitoring</li>
-                                        <li class="list-group-item">Custom alert systems</li>
-                                        <li class="list-group-item">Detailed infrastructure analysis</li>
-                                        <li class="list-group-item">Advanced mitigation planning</li>
-                                        <li class="list-group-item">Priority response recommendations</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <button type="button" class="btn btn-success" onclick="upgradeToPro()">Upgrade to Pro</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-            new bootstrap.Modal(modal).show();
-        }
+            waterSources.forEach(source => {
+                const marker = L.marker(source.coords, {
+                    icon: L.divIcon({
+                        className: 'water-source-icon',
+                        html: '<i class="bi bi-droplet-fill"></i>',
+                        iconSize: [20, 20]
+                    })
+                });
+                marker.bindPopup(`<b>${source.name}</b><br>Type: ${source.type}<br>Capacity: ${source.capacity}<br>Access: ${source.access}`);
+                overlays['Water Sources'].addLayer(marker);
+            });
 
-        function upgradeToPro() {
-            const modal = document.createElement('div');
-            modal.className = 'modal fade';
-            modal.id = 'upgradeModal';
-            modal.innerHTML = `
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Upgrade to Professional</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <h6>Professional Features Include:</h6>
-                            <ul>
-                                <li>Advanced AI-powered risk analysis</li>
-                                <li>Real-time satellite monitoring</li>
-                                <li>Custom alert systems</li>
-                                <li>Detailed infrastructure analysis</li>
-                                <li>Advanced mitigation planning</li>
-                                <li>Priority response recommendations</li>
-                            </ul>
-                            <hr>
-                            <div class="d-grid gap-2">
-                                <button class="btn btn-success" onclick="processUpgrade('monthly')">Monthly Plan - $99/month</button>
-                                <button class="btn btn-success" onclick="processUpgrade('annual')">Annual Plan - $999/year</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-            new bootstrap.Modal(modal).show();
-        }
+            // Add fire trails
+            const fireTrails = [
+                {
+                    name: 'Batona Trail Fire Break',
+                    path: [
+                        [39.8234, -74.5312],
+                        [39.8352, -74.5367],
+                        [39.8423, -74.5477],
+                        [39.8512, -74.5594]
+                    ],
+                    width: '20ft',
+                    surface: 'Gravel/Sand'
+                },
+                {
+                    name: 'Quaker Bridge Fire Line',
+                    path: [
+                        [39.7112, -74.5212],
+                        [39.7234, -74.5367],
+                        [39.7312, -74.5477]
+                    ],
+                    width: '15ft',
+                    surface: 'Packed Sand'
+                },
+                {
+                    name: 'Martha Fire Break',
+                    path: [
+                        [39.6641, -74.5294],
+                        [39.6712, -74.5367],
+                        [39.6823, -74.5477],
+                        [39.6912, -74.5594]
+                    ],
+                    width: '25ft',
+                    surface: 'Gravel'
+                }
+            ];
 
-        function processUpgrade(plan) {
-            // Here you would typically integrate with a payment processor
-            setAnalysisMode('professional');
-            const upgradeModal = bootstrap.Modal.getInstance(document.getElementById('upgradeModal'));
-            if (upgradeModal) {
-                upgradeModal.hide();
-            }
-        }
+            fireTrails.forEach(trail => {
+                const polyline = L.polyline(trail.path, {
+                    color: '#FF8C00',
+                    weight: 3,
+                    dashArray: '10, 10',
+                    opacity: 0.8
+                });
+                polyline.bindPopup(`<b>${trail.name}</b><br>Width: ${trail.width}<br>Surface: ${trail.surface}`);
+                overlays['Fire Trails'].addLayer(polyline);
+            });
 
-        function enableProFeatures() {
-            proFeatures.advancedAnalysis = true;
-            proFeatures.realTimeMonitoring = true;
-            proFeatures.customAlerts = true;
-            proFeatures.aiPredictions = true;
-            updateUIForProFeatures();
-        }
+            // Add past fires with detailed data
+            const pastFires = [
+                {
+                    name: 'Spring Hill Fire',
+                    coords: [
+                        [39.8312, -74.5345],
+                        [39.8401, -74.5467],
+                        [39.8356, -74.5534],
+                        [39.8278, -74.5423]
+                    ],
+                    date: '2024-01-15',
+                    acres: 250,
+                    cause: 'Lightning strike',
+                    burnPattern: 'Crown fire with spotting',
+                    factors: ['High winds: 25mph gusts', 'Low humidity: 22%', 'Drought conditions'],
+                    containmentTime: '36 hours',
+                    fuelTypes: ['Pine', 'Scrub oak'],
+                    spreadDirection: 45, // NE spread
+                    spreadRate: 'Rapid',
+                    resources: ['5 engines', '2 helicopters', '45 personnel']
+                },
+                {
+                    name: 'Warren Grove Fire',
+                    coords: [
+                        [39.7456, -74.3789],
+                        [39.7534, -74.3912],
+                        [39.7612, -74.3867],
+                        [39.7589, -74.3745]
+                    ],
+                    date: '2023-08-22',
+                    acres: 1100,
+                    cause: 'Military training exercise',
+                    burnPattern: 'Wind-driven surface fire',
+                    factors: ['Strong winds: 20mph', 'Drought index: High', 'Temperature: 92°F'],
+                    containmentTime: '72 hours',
+                    fuelTypes: ['Pitch pine', 'Scrub oak', 'Grassland'],
+                    spreadDirection: 90, // E spread
+                    spreadRate: 'Very rapid',
+                    resources: ['8 engines', '3 helicopters', '2 fixed-wing', '120 personnel']
+                },
+                {
+                    name: 'Bass River Complex',
+                    coords: [
+                        [39.6234, -74.4412],
+                        [39.6345, -74.4534],
+                        [39.6412, -74.4489],
+                        [39.6378, -74.4367]
+                    ],
+                    date: '2023-05-17',
+                    acres: 780,
+                    cause: 'Illegal campfire',
+                    burnPattern: 'Ground fire with pockets of crown fire',
+                    factors: ['Dry fuel conditions', 'Low RH: 25%', 'Pine beetle damage'],
+                    containmentTime: '48 hours',
+                    fuelTypes: ['Dead pine', 'Mixed hardwood'],
+                    spreadDirection: 135, // SE spread
+                    spreadRate: 'Moderate',
+                    resources: ['6 engines', '1 helicopter', '60 personnel']
+                },
+                {
+                    name: 'Chatsworth Incident',
+                    coords: [
+                        [39.8123, -74.5234],
+                        [39.8234, -74.5345],
+                        [39.8345, -74.5289],
+                        [39.8256, -74.5167]
+                    ],
+                    date: '2022-09-30',
+                    acres: 450,
+                    cause: 'Equipment spark (Chain saw)',
+                    burnPattern: 'Slow-moving ground fire',
+                    factors: ['Moderate winds', 'Recent drought', 'Dense understory'],
+                    containmentTime: '24 hours',
+                    fuelTypes: ['Mixed pine-oak', 'Shrub layer'],
+                    spreadDirection: 180, // S spread
+                    spreadRate: 'Slow',
+                    resources: ['4 engines', '35 personnel']
+                },
+                {
+                    name: 'Governors Branch Fire',
+                    coords: [
+                        [39.7123, -74.6234],
+                        [39.7234, -74.6345],
+                        [39.7345, -74.6289],
+                        [39.7256, -74.6167]
+                    ],
+                    date: '2022-04-12',
+                    acres: 890,
+                    cause: 'Prescribed burn escape',
+                    burnPattern: 'Mosaic burn pattern',
+                    factors: ['Unexpected wind shift', 'Low fuel moisture', 'Complex terrain'],
+                    containmentTime: '56 hours',
+                    fuelTypes: ['Atlantic white cedar', 'Pitch pine'],
+                    spreadDirection: 225, // SW spread
+                    spreadRate: 'Moderate-rapid',
+                    resources: ['7 engines', '1 helicopter', '85 personnel']
+                },
+                {
+                    name: 'Double Trouble Fire',
+                    coords: [
+                        [39.9123, -74.2234],
+                        [39.9234, -74.2345],
+                        [39.9345, -74.2289],
+                        [39.9256, -74.2167]
+                    ],
+                    date: '2021-06-30',
+                    acres: 1500,
+                    cause: 'Lightning strike',
+                    burnPattern: 'Crown fire',
+                    factors: ['Severe thunderstorm', 'Drought conditions', 'High fuel load'],
+                    containmentTime: '96 hours',
+                    fuelTypes: ['Pine barrens', 'Mixed hardwood'],
+                    spreadDirection: 270, // W spread
+                    spreadRate: 'Very rapid',
+                    resources: ['12 engines', '3 helicopters', '150 personnel']
+                },
+                {
+                    name: 'Wharton State Forest Fire',
+                    coords: [
+                        [39.7823, -74.7123],
+                        [39.7934, -74.7234],
+                        [39.8045, -74.7189],
+                        [39.7956, -74.7067]
+                    ],
+                    date: '2021-04-15',
+                    acres: 2200,
+                    cause: 'Human-caused (Under investigation)',
+                    burnPattern: 'Complex multi-direction spread',
+                    factors: ['Multiple ignition points', 'Extreme drought', 'Strong variable winds'],
+                    containmentTime: '120 hours',
+                    fuelTypes: ['Mixed pine-oak', 'Cedar swamp', 'Grassland'],
+                    spreadDirection: 315, // NW spread
+                    spreadRate: 'Extreme',
+                    resources: ['15 engines', '4 helicopters', '2 fixed-wing', '200 personnel']
+                }
+            ];
 
-        function disableProFeatures() {
-            proFeatures.advancedAnalysis = false;
-            proFeatures.realTimeMonitoring = false;
-            proFeatures.customAlerts = false;
-            proFeatures.aiPredictions = false;
-            updateUIForProFeatures();
-        }
+            pastFires.forEach(fire => {
+                // Calculate color based on fire size
+                const getFireColor = (acres) => {
+                    if (acres > 1000) return '#8B0000'; // dark red
+                    if (acres > 500) return '#FF0000';  // red
+                    return '#FF4500';                   // orange-red
+                };
 
-        function updateUIForProFeatures() {
-            // Update UI elements based on available features
-            const riskInfo = document.getElementById('risk-info');
-            if (proFeatures.advancedAnalysis) {
-                // Enable advanced analysis UI elements
-            } else {
-                // Show basic analysis UI elements
-            }
-        }
-
-        // Check if Mapbox GL JS is available
-        if (typeof mapboxgl === 'undefined') {
-            console.error('Mapbox GL JS not loaded');
-            document.getElementById('map').innerHTML = `
-                <div class="alert alert-danger">
-                    <h5>Map Library Not Loaded</h5>
-                    <p>Unable to load the map library. Please check your internet connection.</p>
-                </div>
-            `;
-        }
-
-        function getColorClass(value) {
-            if (value >= 0.7) return 'danger';
-            if (value >= 0.4) return 'warning';
-            return 'success';
-        }
-
-        function getPriorityColor(priority) {
-            switch(priority.toLowerCase()) {
-                case 'high': return 'danger';
-                case 'medium': return 'warning';
-                case 'low': return 'success';
-                default: return 'secondary';
-            }
-        }
-        // Wait for Mapbox GL JS to load
-        window.addEventListener('load', () => {
-            console.log('Initializing map...');
-            if (typeof mapboxgl === 'undefined') {
-                console.error('Mapbox GL JS not loaded');
-                showError('Map library failed to load. Please check your internet connection.');
-                return;
-            }
-
-            const defaultToken = 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
-            mapboxgl.accessToken = defaultToken;
-
-            try {
-                console.log('Creating map instance...');
-                const map = new mapboxgl.Map({
-                    container: 'map',
-                    style: 'mapbox://styles/mapbox/light-v11',
-                    center: [-74.5, 39.8],
-                    zoom: 9,
-                    maxBounds: [[-75.5, 38.8], [-73.5, 40.8]], // Restrict to NJ Pinelands area
-                    attributionControl: true,
-                    preserveDrawingBuffer: true
+                const polygon = L.polygon(fire.coords, {
+                    color: getFireColor(fire.acres),
+                    fillColor: getFireColor(fire.acres),
+                    fillOpacity: 0.3,
+                    weight: 2
                 });
 
-                map.on('load', () => {
-                    console.log('Map loaded successfully');
-                    const loadingElement = document.querySelector('.map-loading');
-                    if (loadingElement) {
-                        loadingElement.style.display = 'none';
+                // Create detailed popup content
+                const popupContent = `
+                    <div class="fire-popup">
+                        <h4>${fire.name}</h4>
+                        <p><strong>Date:</strong> ${fire.date}</p>
+                        <p><strong>Area:</strong> ${fire.acres} acres</p>
+                        <p><strong>Cause:</strong> ${fire.cause}</p>
+                        <p><strong>Burn Pattern:</strong> ${fire.burnPattern}</p>
+                        <p><strong>Spread Rate:</strong> ${fire.spreadRate}</p>
+                        <p><strong>Containment Time:</strong> ${fire.containmentTime}</p>
+                        <p><strong>Contributing Factors:</strong></p>
+                        <ul>
+                            ${fire.factors.map(factor => `<li>${factor}</li>`).join('')}
+                        </ul>
+                        <p><strong>Resources Deployed:</strong></p>
+                        <ul>
+                            ${fire.resources.map(resource => `<li>${resource}</li>`).join('')}
+                        </ul>
+                        <p><strong>Fuel Types:</strong> ${fire.fuelTypes.join(', ')}</p>
+                    </div>
+                `;
+
+                polygon.bindPopup(popupContent, {
+                    maxWidth: 300,
+                    className: 'fire-popup'
+                });
+                overlays['Past Fires'].addLayer(polygon);
+
+                // Add fire spread indicators
+                if (fire.spreadDirection) {
+                    // Create arrow for fire spread direction
+                    const center = L.latLngBounds(fire.coords).getCenter();
+                    const angle = fire.spreadDirection;
+                    const arrowLength = 0.01; // Adjust based on map scale
+
+                    // Calculate arrow endpoint using angle and length
+                    const endLat = center.lat + arrowLength * Math.cos(angle * Math.PI / 180);
+                    const endLng = center.lng + arrowLength * Math.sin(angle * Math.PI / 180);
+
+                    // Create the arrow line
+                    const arrow = L.polyline([
+                        [center.lat, center.lng],
+                        [endLat, endLng]
+                    ], {
+                        color: '#FF4500',
+                        weight: 3,
+                        opacity: 0.8
+                    });
+
+                    // Add arrowhead
+                    const arrowHead = L.polyline([
+                        [endLat, endLng],
+                        [endLat - 0.005 * Math.cos((angle + 30) * Math.PI / 180), 
+                         endLng - 0.005 * Math.sin((angle + 30) * Math.PI / 180)],
+                        [endLat - 0.005 * Math.cos((angle - 30) * Math.PI / 180),
+                         endLng - 0.005 * Math.sin((angle - 30) * Math.PI / 180)],
+                        [endLat, endLng]
+                    ], {
+                        color: '#FF4500',
+                        weight: 3,
+                        opacity: 0.8,
+                        fill: true
+                    });
+
+                    overlays['Fire Spread'].addLayer(arrow);
+                    overlays['Fire Spread'].addLayer(arrowHead);
+                }
+            });
+
+            // Add vegetation density (sample heatmap)
+            const points = [];
+            for (let i = 0; i < 100; i++) {
+                const lat = 39.7 + Math.random() * 0.3;
+                const lng = -74.6 + Math.random() * 0.3;
+                const value = Math.random();
+                points.push([lat, lng, value]);
+            }
+
+            if (window.L.heatLayer) {
+                const heatLayer = L.heatLayer(points, {
+                    radius: 25,
+                    blur: 15,
+                    maxZoom: 10,
+                    gradient: {0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1: 'red'}
+                });
+                overlays['Vegetation Density'].addLayer(heatLayer);
+            }
+        }
+
+        window.addEventListener('load', () => {
+            try {
+                // Initialize map but keep it hidden
+                const mapDiv = document.getElementById('map');
+                mapDiv.style.display = 'none';
+                
+                const map = L.map('map', {
+                    zoomControl: true,
+                    scrollWheelZoom: true
+                });
+
+                // Base layers
+                const baseLayers = {
+                    'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '© OpenStreetMap contributors'
+                    }),
+                    'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                        maxZoom: 19,
+                        attribution: '© Esri'
+                    }),
+                    'Terrain': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+                        maxZoom: 19,
+                        attribution: '© Esri'
+                    })
+                };
+
+                // Add overlay layers
+                const overlays = {
+                    'Fire Stations': L.layerGroup([]),
+                    'Water Sources': L.layerGroup([]),
+                    'Fire Trails': L.layerGroup([]),
+                    'Vegetation Density': L.layerGroup([]),
+                    'Past Fires': L.layerGroup([]),
+                    'Fire Spread': L.layerGroup([])
+                };
+
+                // Add default base layer
+                baseLayers['OpenStreetMap'].addTo(map);
+
+                // Add layer control
+                L.control.layers(baseLayers, overlays, {
+                    collapsed: false,
+                    position: 'topright'
+                }).addTo(map);
+
+                // Add scale control
+                L.control.scale({
+                    imperial: true,
+                    metric: true,
+                    position: 'bottomleft'
+                }).addTo(map);
+
+                // Initialize layers with sample data
+                initializeMapLayers(overlays);
+
+                // Set map bounds
+                const bounds = L.latLngBounds(
+                    L.latLng(38.8, -75.5), // Southwest
+                    L.latLng(40.8, -73.5)  // Northeast
+                );
+                map.setMaxBounds(bounds);
+                map.setView([39.8, -74.5], 9);
+
+                // Add scale control
+                L.control.scale({
+                    imperial: true,
+                    metric: true
+                }).addTo(map);
+
+                // Store map in state for later use
+                state.map = map;
+
+                // Hide loading spinner once map is ready
+                hideLoadingSpinner();
+
+                // Add click handler for area selection
+                map.on('click', (e) => {
+                    const lat = e.latlng.lat;
+                    const lng = e.latlng.lng;
+                    console.log(`Clicked at: ${lng}, ${lat}`);
+
+                    try {
+                        // Create a 1km square box around the clicked point
+                        const coordinates = createSquareCoordinates(lng, lat, 1);
+                        
+                        // Remove previous selection if it exists
+                        if (state.selectedArea) {
+                            map.removeLayer(state.selectedArea);
+                        }
+
+                        // Convert coordinates to Leaflet format (lat, lng)
+                        const leafletCoords = coordinates.map(coord => [coord[1], coord[0]]);
+
+                        // Add new selection
+                        state.selectedArea = L.polygon(leafletCoords, {
+                            color: '#0080ff',
+                            fillColor: '#0080ff',
+                            fillOpacity: 0.3,
+                            weight: 2
+                        }).addTo(map);
+
+                        // Analyze the selected area
+                        analyzeArea(coordinates);
+                    } catch (error) {
+                        console.error('Error updating selection:', error);
+                        showError(`Error updating selection: ${error.message}`, error);
                     }
                 });
 
                 map.on('error', (e) => {
-                    console.error('Map error:', e);
-                    showError(`Map error: ${e.error ? e.error.message : 'Unknown error'}`);
-                });
-
-                // Add navigation controls
-                map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-                map.addControl(new mapboxgl.ScaleControl(), 'bottom-right');
-            } catch (error) {
-                console.error('Map initialization error:', error);
-                showError(`Failed to initialize map: ${error.message}`);
-            }
-        });
-
-        function showError(message) {
-            console.error(message);
-            const mapElement = document.getElementById('map');
-            if (mapElement) {
-                const loadingElement = mapElement.querySelector('.map-loading');
-                if (loadingElement) {
-                    loadingElement.style.display = 'none';
-                }
-                mapElement.innerHTML = `
-                    <div class="alert alert-danger">
-                        <h5>Map Error</h5>
-                        <p>${message}</p>
-                        <button class="btn btn-outline-danger btn-sm mt-2" onclick="window.location.reload()">Retry</button>
-                    </div>
-                `;
-            }
-            document.getElementById('map').innerHTML = '<div class="alert alert-danger">' +
-                '<p>Unable to validate map access. Please check your connection or contact support.</p>' +
-                '<button class="btn btn-outline-danger btn-sm mt-2" onclick="window.location.reload()">Try Again</button>' +
-            '</div>';
-        };
-
-        map.on('error', (e) => {
-            console.error('Map error details:', {
-                message: e.error ? e.error.message : 'Unknown error',
-                status: e.status,
-                type: e.type
-            });
-            const mapElement = document.getElementById('map');
-            const loadingElement = mapElement.querySelector('.map-loading');
-            if (loadingElement) {
-                loadingElement.style.display = 'none';
-            }
-            const errorMessage = e.error ? e.error.message : 'An unknown error occurred';
-            const errorHtml = '<div class="alert alert-danger">' +
-                '<h5>Map Error</h5>' +
-                '<p>' + errorMessage + '</p>' +
-                '<small>Please check console for more details.</small>' +
-                '<button class="btn btn-outline-danger btn-sm mt-2" onclick="window.location.reload()">Try Again</button>' +
-            '</div>';
-            mapElement.innerHTML = errorHtml;
-        });
-
-        // Wait for map style to load
-        map.on('style.load', async () => {
-            console.log('Map style loaded successfully');
-            
-            try {
-                // Add terrain source
-                await map.addSource('mapbox-dem', {
-                    'type': 'raster-dem',
-                    'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
-                    'tileSize': 512,
-                    'maxzoom': 14
-                });
-
-                // Add sky layer
-                map.addLayer({
-                    'id': 'sky',
-                    'type': 'sky',
-                    'paint': {
-                        'sky-type': 'atmosphere',
-                        'sky-atmosphere-sun': [0.0, 90.0],
-                        'sky-atmosphere-sun-intensity': 15
-                    }
-                });
-
-                // Enable terrain
-                map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
-
-                // Add 3D buildings
-                map.addLayer({
-                    'id': '3d-buildings',
-                    'source': 'composite',
-                    'source-layer': 'building',
-                    'filter': ['==', 'extrude', 'true'],
-                    'type': 'fill-extrusion',
-                    'minzoom': 15,
-                    'paint': {
-                        'fill-extrusion-color': '#aaa',
-                        'fill-extrusion-height': ['get', 'height'],
-                        'fill-extrusion-base': ['get', 'min_height'],
-                        'fill-extrusion-opacity': .6
-                    }
-                });
-            } catch (error) {
-                console.error('Error initializing map layers:', error);
-            }
-        });
-
-        // Add map controls
-        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-        map.addControl(new mapboxgl.ScaleControl(), 'bottom-right');
-        map.addControl(new mapboxgl.FullscreenControl(), 'top-right');
-        
-        // Add terrain control
-        map.addControl(
-            new mapboxgl.TerrainControl({
-                source: 'mapbox-dem',
-                exaggeration: 1.5
-            })
-        );
-
-        // Load regions
-        fetch('/api/v1/regions')
-            .then(response => response.json())
-            .then(data => {
-                const regionsList = document.getElementById('regions-list');
-                data.regions.forEach(region => {
-                    const div = document.createElement('div');
-                    div.className = `alert risk-${region.risk_level}`;
-                    div.textContent = region.name;
-                    div.style.cursor = 'pointer';
-                    div.onclick = () => {
-                        map.flyTo({
-                            center: region.center,
-                            zoom: 12
-                        });
+                    const errorDetails = {
+                        message: e.error || 'Unknown map error',
+                        stack: e.stack || '',
+                        details: JSON.stringify(e)
                     };
-                    regionsList.appendChild(div);
+                    console.error('Map error:', errorDetails);
+                    showError(`Map error: ${errorDetails.message}`, e);
                 });
-            });
 
-        // Handle map clicks
-        map.on('click', (e) => {
-            console.log('Map clicked at:', e.lngLat);
-            const coordinates = [
-                [e.lngLat.lng - 0.1, e.lngLat.lat - 0.1],
-                [e.lngLat.lng + 0.1, e.lngLat.lat + 0.1]
-            ];
-
-            fetch('/api/v1/predict', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        coordinates: coordinates
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    try {
-                        const riskInfo = document.getElementById('risk-info');
-                        const riskScore = (data.risk_score * 100).toFixed(1);
-                        const confidence = (data.confidence * 100).toFixed(1);
-
-                        const envFactorsHtml = Object.entries(data.environmental_factors).map(([factor, value]) => {
-                            const colorClass = getColorClass(value);
-                            const percentage = (value * 100).toFixed(0);
-                            const label = factor.charAt(0).toUpperCase() + factor.slice(1);
-                            return '<div class="factor-item">' +
-                                '<label>' + label + '</label>' +
-                                '<div class="progress">' +
-                                    '<div class="progress-bar bg-' + colorClass + '" ' +
-                                        'role="progressbar" ' +
-                                        'style="width: ' + percentage + '%">' +
-                                        percentage + '%' +
-                                    '</div>' +
-                                '</div>' +
-                            '</div>';
-                    }).join('');
-
-                    // Update risk info content
-                    riskInfo.innerHTML = `
-                        <div class="risk-analysis-container">
-                            <h6>Risk Analysis Results</h6>
-                            <p>Risk Score: <strong>${riskScore}%</strong></p>
-                            <p>Confidence: ${confidence}%</p>
-                            <h6 class="mt-4">Environmental Factors</h6>
-                            <div class="progress-list">${envFactorsHtml}</div>
-                        </div>`;
-                    const fireFrequency = (data.historical_data.fire_frequency * 100).toFixed(1);
-                    const seasonalRisk = (data.historical_data.seasonal_risk * 100).toFixed(1);
-                    
-                    // Generate HTML for previous fires
-                    const previousFiresHtml = data.historical_data.previous_fires.map((fire) => {
-                        return `<tr>
-                            <td>${fire.year}</td>
-                            <td>${fire.size_hectares}</td>
-                            <td>${fire.cause}</td>
-                        </tr>`;
-                    }).join('');
-
-                    // Generate HTML for historical data
-                    const historicalHtml = `
-                        <div class="historical-data">
-                            <div>
-                                <h6 class="mt-4">Historical Data</h6>
-                                <p>Fire Frequency: ${fireFrequency}%</p>
-                                <p>Seasonal Risk: ${seasonalRisk}%</p>
-                                <h6>Previous Fires:</h6>
-                                <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th>Year</th>
-                                                <th>Size (ha)</th>
-                                                <th>Cause</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>${previousFiresHtml}</tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-
-                    const infraRiskHtml = Object.entries(data.infrastructure_risk || {}).map(([factor, value]) => {
-                        const colorClass = getColorClass(value);
-                        const percentage = (value * 100).toFixed(0);
-                        const label = factor.split('_').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-                        return `
-                            <div class="factor-item">
-                                <div>
-                                    <label>${label}</label>
-                                    <div class="progress">
-                                        <div class="progress-bar bg-${colorClass}"
-                                             role="progressbar"
-                                             style="width: ${percentage}%">
-                                            ${percentage}%
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-
-                    const mitigationHtml = (data.mitigation_recommendations || []).map((rec) => {
-                        const priorityColor = (typeof getPriorityColor === 'function' ? getPriorityColor(rec.priority) : 'secondary');
-                        const estimatedCost = typeof rec.estimated_cost === 'number' ? rec.estimated_cost.toLocaleString() : 'N/A';
-                        return `
-                            <div class="recommendation-card ${rec.priority || 'unknown'}">
-                                <div>
-                                    <h6>${rec.action || 'No action specified'}</h6>
-                                    <p>Priority: <span class="badge bg-${priorityColor}">${rec.priority || 'unknown'}</span></p>
-                                    <p>Estimated Cost: $${estimatedCost}</p>
-                                    <p>Time Frame: ${rec.time_frame || 'Not specified'}</p>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-
-                    const lastUpdated = data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Not available';
-
-                    const finalHtml = `
-                        <div class="risk-analysis-container">
-                            <div class="risk-analysis-content">
-                                ${historicalHtml || ''}
-                                ${infraRiskHtml ? `
-                                    <h6 class="mt-4">Infrastructure Risk</h6>
-                                    <div class="progress-list">${infraRiskHtml}</div>
-                                ` : ''}
-                                ${mitigationHtml ? `
-                                    <h6 class="mt-4">Mitigation Recommendations</h6>
-                                    ${mitigationHtml}
-                                ` : ''}
-                                <small class="text-muted mt-3 d-block">Last updated: ${lastUpdated}</small>
-                            </div>
-                        </div>
-                    `;
-
-
-                    const riskInfoElement = document.getElementById('riskInfo');
-                    if (riskInfoElement) {
-                        riskInfoElement.innerHTML = finalHtml;
-                    } else {
-                        console.warn('Risk info element not found in the DOM');
-                    }
-                } catch (error) {
-                    console.error('Error initializing map:', error.message, error.stack);
-                    const mapElement = document.getElementById('map');
-                    if (mapElement) {
-                        mapElement.innerHTML = `
-                            <div class="alert alert-danger error-container">
-                                <div class="error-content">
-                                    <h5>Error initializing map</h5>
-                                    <p>${error.message || 'Unknown error occurred'}</p>
-                                    <small>Please check console for more details.</small>
-                                </div>
-                            </div>
-                        `;
-                    }
-                    return Promise.reject(error); // Properly reject the promise
-                }
-                });
-            })
-            .catch(error => {
-                console.error('Error in map initialization:', error);
-                const mapElement = document.getElementById('map');
-                if (mapElement) {
-                    mapElement.innerHTML = `
-                        <div class="alert alert-danger error-container">
-                            <div class="error-content">
-                                <h5>Error initializing map</h5>
-                                <p>${error.message || 'Unknown error occurred'}</p>
-                                <small>Please check console for more details.</small>
-                            </div>
-                        </div>
-                    `;
-                }
-            })
-            .then(() => {
-                console.log('Map ready for interaction');
-            })
-            .catch(error => {
-                console.error('Final error handler:', error);
-                const mapElement = document.getElementById('map');
-                if (mapElement) {
-                    mapElement.innerHTML = `
-                        <div class="alert alert-danger error-container">
-                            <div class="error-content">
-                                <h5>Map initialization failed</h5>
-                                <p>${error.message || 'Unknown error occurred'}</p>
-                                <small>Please check console for more details.</small>
-                            </div>
-                        </div>
-                    `;
-                }
-            })
-            .finally(() => {
-                console.log('Map initialization process completed');
-            }); // End map initialization
-
-// Helper functions
-function getColorClass(value) {
-    if (value >= 0.7) return 'danger';
-    if (value >= 0.4) return 'warning';
-    return 'success';
-}
-
-function getPriorityColor(priority) {
-    switch (priority.toLowerCase()) {
-        case 'high': return 'danger';
-        case 'medium': return 'warning';
-        case 'low': return 'success';
-        default: return 'secondary';
-    }
-}
-
-function updateRiskInfo(data) {
-    const riskInfo = document.getElementById('riskInfo');
-    const riskScore = (data.risk_score * 100).toFixed(0);
-    const confidence = (data.confidence * 100).toFixed(0);
-
-    // Generate HTML for factors
-    const factorsHtml = Object.entries(data.contributing_factors || {}).map(([factor, value]) => {
-            const colorClass = getColorClass(value);
-            const percentage = (value * 100).toFixed(0);
-            const label = factor.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-            return `
-                <div class="factor-item">
-                    <div>
-                        <label>${label}</label>
-                        <div class="progress">
-                            <div class="progress-bar bg-${colorClass}"
-                                 role="progressbar"
-                                 style="width: ${percentage}%">
-                                ${percentage}%
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            }).join('');
-
-            // Update risk info content
-            riskInfo.innerHTML = '<div class="risk-analysis-container">' +
-                '<h6>Risk Analysis Results</h6>' +
-                '<p>Risk Score: <strong>' + riskScore + '%</strong></p>' +
-                '<p>Confidence: ' + confidence + '%</p>' +
-                '<h6 class="mt-4">Environmental Factors</h6>' +
-                '<div class="progress-list">' + factorsHtml + '</div>' +
-                '</div>';
-
-            // Generate HTML for historical data
-            const previousFiresHtml = (data.previous_fires || []).map(fire => {
-                return '<tr>' +
-                    '<td>' + new Date(fire.date).toLocaleDateString() + '</td>' +
-                    '<td>' + fire.size_hectares + '</td>' +
-                    '<td>' + fire.cause + '</td>' +
-                '</tr>';
-            }).join('');
-
-            // Generate HTML for mitigation recommendations
-            const mitigationHtml = (data.mitigation_recommendations || []).map(rec => {
-                const priorityColor = getPriorityColor(rec.priority);
-                return '<div class="recommendation-card ' + rec.priority.toLowerCase() + '">' +
-                    '<div>' +
-                        '<h6>' + rec.action + '</h6>' +
-                        '<p>Priority: <span class="badge bg-' + priorityColor + '">' + rec.priority + '</span></p>' +
-                        '<p>Estimated Cost: $' + rec.estimated_cost.toLocaleString() + '</p>' +
-                        '<p>Time Frame: ' + rec.time_frame + '</p>' +
-                    '</div>' +
-                '</div>';
-            }).join('');
-
-            // Update the UI with a single parent element
-            riskInfo.innerHTML = `
-                <div class="risk-analysis-container">
-                    <div class="risk-analysis-content">
-                        <div class="analysis-section">
-                            <h6>Risk Analysis Results</h6>
-                            <p>Risk Score: <strong>${riskScore}%</strong></p>
-                            <p>Confidence: ${confidence}%</p>
-
-                            <h6 class="mt-4">Contributing Factors</h6>
-                            <div class="progress-list">${factorsHtml}</div>
-
-                            <div class="historical-data">
-                                <h6 class="mt-4">Historical Data</h6>
-                                <p>Fire Frequency: ${data.fire_frequency || 0}%</p>
-                                <p>Seasonal Risk: ${data.seasonal_risk || 0}%</p>
-                                <h6>Previous Fires:</h6>
-                                <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th>Date</th>
-                                                <th>Size (ha)</th>
-                                                <th>Cause</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>${previousFiresHtml}</tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <h6 class="mt-4">Mitigation Recommendations</h6>
-                            ${mitigationHtml}
-
-                            <small class="text-muted mt-3 d-block">Last updated: ${new Date().toLocaleString()}</small>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        // Version management functions
-        function upgradeToPro() {
-            state.currentVersion = 'professional';
-            document.getElementById('versionBadge').innerHTML = '<span class="badge bg-primary">Pro Version</span>';
-            document.getElementById('proFeatures').style.display = 'block';
-            if (state.selectedArea) {
-                analyzeArea(state.selectedArea);
+                state.map = map;
+            } catch (error) {
+                const errorDetails = {
+                    message: error.message,
+                    stack: error.stack,
+                    details: JSON.stringify(error, ['message', 'name', 'stack'], 2)
+                };
+                console.error('Map initialization error:', errorDetails);
+                showError(`Failed to initialize map: ${error.message}`, error);
             }
-        }
-
-        function showAnalysisComparison() {
-            if (!state.selectedArea) {
-                alert('Please select an area first');
-                return;
-            }
-            // Implementation for analysis comparison
-        };
-
-        function showAdvancedTools() {
-            if (state.currentVersion !== 'professional') {
-                alert('Please upgrade to Pro to access advanced tools');
-                return;
-            }
-            // Implementation for advanced tools
-        };
+        });
     </script>
 </body>
 </html>

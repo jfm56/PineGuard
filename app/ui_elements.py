@@ -1,4 +1,3 @@
-from typing import Any
 
 class UIElement:
     def __init__(self, name: str, label: str):
@@ -12,9 +11,9 @@ class Select(UIElement):
         self.multiple = multiple
 
 class DatePicker(UIElement):
-    def __init__(self, name: str, label: str, range: bool = False):
+    def __init__(self, name: str, label: str, date_range: bool = False):
         super().__init__(name, label)
-        self.range = range
+        self.range = date_range
 
 class Button(UIElement):
     def __init__(self, name: str, label: str, primary: bool = False, variant: str = "primary"):

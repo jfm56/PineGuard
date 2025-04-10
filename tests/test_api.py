@@ -97,9 +97,15 @@ def test_invalid_risk_prediction(invalid_area):
     assert response.status_code == 422
 
 def test_rate_limiting():
+    # Reset rate limiter before test
+    app.state.limiter.reset()
+    
+    # First 10 requests should succeed
     for _ in range(10):
         response = client.get("/health")
         assert response.status_code == 200
     
+    # 11th request should fail with 429 Too Many Requests
     response = client.get("/health")
-    assert response.status_code == 429  # Too Many Requests
+    assert response.status_code == 429
+    assert "Rate limit exceeded" in response.text

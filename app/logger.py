@@ -1,3 +1,4 @@
+
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -58,9 +59,9 @@ def log_action(action, details=None, level=logging.INFO):
         details (dict, optional): Additional details about the action
         level (int): Logging level (default: INFO)
     """
-    message = f"Action: {action}"
+    message = "Action: %s"
     if details:
-        message += f" - Details: {details}"
+        message = "%s - Details: %s" % (message, details)
     logger.log(level, message)
 
 def log_api_request(method, endpoint, params=None, response_status=None):
@@ -80,7 +81,7 @@ def log_api_request(method, endpoint, params=None, response_status=None):
         'response_status': response_status,
         'timestamp': datetime.now().isoformat()
     }
-    logger.info(f"API Request - {details}")
+    logger.info("API Request - %s", details)
 
 def log_error(error, context=None):
     """
@@ -95,4 +96,4 @@ def log_error(error, context=None):
         'error_message': str(error),
         'context': context
     }
-    logger.error(f"Error occurred: {error_details}", exc_info=True)
+    logger.error("Error occurred: %s", error_details, exc_info=True)
