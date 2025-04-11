@@ -11,6 +11,8 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 
+from app.api import fire_risk, map_data  # Import the fire risk and map data modules
+
 from .logger import logger, log_action, log_api_request, log_error
 
 # Initialize rate limiter
@@ -28,6 +30,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# Include the routers
+app.include_router(fire_risk.router)
+app.include_router(map_data.router)
 
 @app.get("/")
 async def read_root():

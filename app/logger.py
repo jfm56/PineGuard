@@ -59,10 +59,10 @@ def log_action(action, details=None, level=logging.INFO):
         details (dict, optional): Additional details about the action
         level (int): Logging level (default: INFO)
     """
-    message = "Action: %s"
     if details:
-        message = "%s - Details: %s" % (message, details)
-    logger.log(level, message)
+        logger.log(level, "Action: %s - Details: %s", action, details)
+    else:
+        logger.log(level, "Action: %s", action)
 
 def log_api_request(method, endpoint, params=None, response_status=None):
     """

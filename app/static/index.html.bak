@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PineGuard - Wildfire Risk Prediction</title>
+    <!-- CSS Dependencies -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- JavaScript Dependencies -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <style>
+        #map { 
+            height: 600px;
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            position: relative;
+        }
+        
+        .map-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            margin: 10px auto;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .mapboxgl-canvas {
+            outline: none;
+        }
+        .alert {
+            margin: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .alert-danger {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        /* Menu styles */
+        #menu-cards {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+        }
+
+        .menu-card {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            background: white;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 1rem;
+            flex: 1;
+            min-width: 250px;
+            max-width: 350px;
+        }
+
+        .menu-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-color: #3498db;
+        }
+
+        .menu-card .card-body {
+            text-align: center;
+            padding: 2rem;
+            position: relative;
+        }
+
+        .menu-card i {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            color: #3498db;
+            transition: all 0.3s ease;
+        }
+
+        .menu-card:hover i {
+            transform: scale(1.1);
+        }
+
+        .menu-card .card-title {
+            color: #2c3e50;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .menu-card .card-text {
+            color: #7f8c8d;
+            font-size: 0.95rem;
+        }
+
+        .menu-card.active {
+            background: #f8f9fa;
+            border-color: #3498db;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.2);
+        }
+
+        .menu-card.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Dashboard styles */
+        .dashboard-card {
+            height: 100%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .dashboard-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .dashboard-card .card-header {
+            padding: 1rem;
+            font-weight: 500;
+        }
+
+        .weather-icon {
+            font-size: 2.5rem;
+            color: #0d6efd;
+        }
+
+        .weather-info h2 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .weather-details {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .risk-meter .progress {
+            height: 2rem;
+            border-radius: 1rem;
+        }
+
+        .risk-meter .progress-bar {
+            transition: width 0.6s ease;
+        }
+
+        #forecast .forecast-day {
+            text-align: center;
+            padding: 1rem;
+            border-right: 1px solid #dee2e6;
+        }
+
+        #forecast .forecast-day:last-child {
+            border-right: none;
+        }
+
+        .hazard-indicators .progress {
+            height: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .hazard-indicators label {
+            font-size: 0.9rem;
+            color: #495057;
+            margin-bottom: 0.25rem;
+        }
+
+        /* Map styles */
+        #map {
+            height: 600px;
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+
+        /* Map layer styles */
+        .leaflet-control-layers {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+        }
+
+        .leaflet-control-layers-list {
+            margin-bottom: 0;
+        }
+
+        .fire-station-icon,
+        .water-source-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .fire-station-icon i {
+            color: #dc3545;
+        }
+
+        .water-source-icon i {
+            color: #0d6efd;
+        }
+
+        /* Fire trail styles */
+        .fire-trail {
+            stroke-dasharray: 5, 10;
+            animation: dash 20s linear infinite;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -1000;
+            }
+        }
+
+        /* Fire history popup styles */
+        .fire-popup .leaflet-popup-content-wrapper {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .fire-popup .leaflet-popup-content {
+            margin: 15px;
+            min-width: 250px;
+        }
+
+        .fire-popup h4 {
+            color: #d32f2f;
+            margin: 0 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #ffcdd2;
+        }
+
+        .fire-popup p {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
+        .fire-popup ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+
+        .fire-popup li {
+            margin: 3px 0;
+            color: #424242;
+        }
+
+        .fire-popup strong {
+            color: #b71c1c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid mt-4">
+        <h1 class="text-center mb-4">PineGuard - Wildfire Risk Prediction</h1>
+        
+        <!-- Back to Menu Button -->
+        <div class="row mb-4" id="back-button" style="display: none;">
+            <div class="col">
+                <button class="btn btn-primary" onclick="backToMenu()">
+                    <i class="bi bi-arrow-left"></i> Back to Menu
+                </button>
+            </div>
+        </div>
+
+        <!-- Menu Row -->
+        <div class="row mb-4" id="menu-cards">
+            <div class="col-md-4 mb-4">
+                <div class="card menu-card active" id="interactive-map-card" onclick="handleMenuClick('interactive-map')">
+                    <div class="card-body">
+                        <i class="bi bi-map"></i>
+                        <h5 class="card-title">Interactive Map</h5>
+                        <p class="card-text">Explore and analyze wildfire risk in your area</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card menu-card" id="hazards-card" onclick="handleMenuClick('hazards')">
+                    <div class="card-body">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <h5 class="card-title">List Hazards</h5>
+                        <p class="card-text">View potential fire hazards in your region</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card menu-card" id="fire-danger-card" onclick="handleMenuClick('fire-danger')">
+                    <div class="card-body">
+                        <i class="bi bi-thermometer-high"></i>
+                        <h5 class="card-title">Current Fire Danger</h5>
+                        <p class="card-text">Check today's fire danger level</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card menu-card" id="evacuation-card" onclick="handleMenuClick('evacuation')">
+                    <div class="card-body">
+                        <i class="bi bi-sign-turn-right"></i>
+                        <h5 class="card-title">Evacuation Plan</h5>
+                        <p class="card-text">View evacuation routes and safe zones</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card menu-card" id="preparedness-card" onclick="handleMenuClick('preparedness')">
+                    <div class="card-body">
+                        <i class="bi bi-shield-check"></i>
+                        <h5 class="card-title">Fire Preparedness</h5>
+                        <p class="card-text">Learn how to prepare for wildfires</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Row -->
+        <div class="row mb-4">
+            <div class="col">
+                <div id="map" style="display: none;">
+                    <div class="map-loading">
+                        <div class="loading-spinner"></div>
+                        <p>Loading map...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4" id="analysis-results" style="display: none;">
+            <div class="col">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Analysis Results</h5>
+                        <div id="results-content"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        const state = {
+            map: null,
+            selectedArea: null,
+            activeView: 'area-analysis'
+        };
+
+        function handleMenuClick(viewName) {
+            // Update active state
+            state.activeView = viewName;
+
+            // Hide menu cards and show back button
+            document.getElementById('menu-cards').style.display = 'none';
+            document.getElementById('back-button').style.display = 'block';
+
+            // Hide all content sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.style.display = 'none';
+            });
+
+            // Handle view changes
+            switch (viewName) {
+                case 'interactive-map':
+                    document.getElementById('map').style.display = 'block';
+                    document.getElementById('analysis-results').style.display = state.selectedArea ? 'block' : 'none';
+                    // Force a refresh of the map and center it on the Pinelands
+                    if (state.map) {
+                        setTimeout(() => {
+                            state.map.invalidateSize();
+                            state.map.setView([39.8, -74.5], 9);
+                        }, 100);
+                    }
+                    break;
+                case 'hazards':
+                    showHazardsList();
+                    break;
+                case 'fire-danger':
+                    showFireDanger();
+                    break;
+                case 'evacuation':
+                    showEvacuationPlan();
+                    break;
+                case 'preparedness':
+                    showPreparednessGuide();
+                    break;
+            }
+        }
+
+        function backToMenu() {
+            // Hide all content sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.style.display = 'none';
+            });
+            document.getElementById('map').style.display = 'none';
+            document.getElementById('analysis-results').style.display = 'none';
+
+            // Show menu cards and hide back button
+            document.getElementById('menu-cards').style.display = 'flex';
+            document.getElementById('back-button').style.display = 'none';
+
+            // Reset active state
+            state.activeView = null;
+            document.querySelectorAll('.menu-card').forEach(card => {
+                card.classList.remove('active');
+            });
+        }
+
+        function showHazardsList() {
+            const contentDiv = document.getElementById('hazards-content') || createContentSection('hazards-content');
+            contentDiv.innerHTML = `
+                <div class="container mt-4">
+                    <h3>Potential Fire Hazards</h3>
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Dry Vegetation
+                            <span class="badge bg-danger rounded-pill">High Risk</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Dead Trees
+                            <span class="badge bg-warning rounded-pill">Medium Risk</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Overgrown Brush
+                            <span class="badge bg-warning rounded-pill">Medium Risk</span>
+                        </li>
+                    </ul>
+                </div>
+            `;
+            contentDiv.style.display = 'block';
+        }
+
+        async function showFireDanger() {
+            const contentDiv = document.getElementById('fire-danger-content') || createContentSection('fire-danger-content');
+            
+            try {
+                // Show loading state
+                contentDiv.innerHTML = `
+                    <div class="container mt-4">
+                        <h3>Current Fire Danger Level</h3>
+                        <div class="alert alert-info">
+                            <div class="loading-spinner"></div>
+                            <p class="text-center">Loading current conditions...</p>
+                        </div>
+                    </div>
+                `;
+                contentDiv.style.display = 'block';
+
+                // Fetch current weather data
+                const response = await fetch('/api/v1/weather/current');
+                if (!response.ok) throw new Error('Failed to fetch weather data');
+                const data = await response.json();
+
+                // Determine danger level based on conditions
+                let dangerLevel = 'MODERATE';
+                let alertClass = 'alert-warning';
+                
+                if (data.temperature > 85 || data.humidity < 30 || data.wind_speed > 15) {
+                    dangerLevel = 'HIGH';
+                    alertClass = 'alert-danger';
+                } else if (data.temperature < 75 && data.humidity > 60 && data.wind_speed < 10) {
+                    dangerLevel = 'LOW';
+                    alertClass = 'alert-success';
+                }
+
+                // Update the content
+                contentDiv.innerHTML = `
+                    <div class="container mt-4">
+                        <h3>Current Fire Danger Level</h3>
+                        <div class="alert ${alertClass}">
+                            <h4><i class="bi bi-thermometer-high"></i> ${dangerLevel}</h4>
+                            <p>Current conditions for ${data.location}</p>
+                            <ul>
+                                <li>Temperature: ${data.temperature}°F</li>
+                                <li>Humidity: ${data.humidity}%</li>
+                                <li>Wind Speed: ${data.wind_speed} mph</li>
+                                <li>Conditions: ${data.conditions}</li>
+                            </ul>
+                            <small class="text-muted">Last updated: ${new Date(data.timestamp).toLocaleString()}</small>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error fetching weather data:', error);
+                contentDiv.innerHTML = `
+                    <div class="container mt-4">
+                        <h3>Current Fire Danger Level</h3>
+                        <div class="alert alert-danger">
+                            <h4><i class="bi bi-exclamation-triangle"></i> Error</h4>
+                            <p>Unable to fetch current conditions. Please try again later.</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function showEvacuationPlan() {
+            const contentDiv = document.getElementById('evacuation-content') || createContentSection('evacuation-content');
+            contentDiv.innerHTML = `
+                <div class="container mt-4">
+                    <h3>Evacuation Routes and Safe Zones</h3>
+                    <div class="alert alert-info">
+                        <h4>Primary Evacuation Routes</h4>
+                        <ul>
+                            <li>Route 1: North on Pine Road to Safe Zone A</li>
+                            <li>Route 2: East on Oak Street to Safe Zone B</li>
+                            <li>Route 3: West on Maple Avenue to Safe Zone C</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            contentDiv.style.display = 'block';
+        }
+
+        function showPreparednessGuide() {
+            const contentDiv = document.getElementById('preparedness-content') || createContentSection('preparedness-content');
+            contentDiv.innerHTML = `
+                <div class="container mt-4">
+                    <h3>Fire Preparedness Guide</h3>
+                    <div class="card-deck">
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <h5>Create a Defensible Space</h5>
+                                <ul>
+                                    <li>Clear vegetation 30 feet around your home</li>
+                                    <li>Remove dead plants and trees</li>
+                                    <li>Keep grass short and watered</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <h5>Emergency Kit Checklist</h5>
+                                <ul>
+                                    <li>Water and non-perishable food</li>
+                                    <li>First aid supplies</li>
+                                    <li>Battery-powered radio</li>
+                                    <li>Important documents</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            contentDiv.style.display = 'block';
+        }
+
+        function createContentSection(id) {
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = 'content-section';
+            document.querySelector('.container').appendChild(div);
+            return div;
+        }
+
+        // Utility functions
+        async function logError(error, details = {}) {
+            try {
+                await fetch('/api/v1/log-error', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: error.message || String(error),
+                        stack: error.stack,
+                        details: details
+                    })
+                });
+            } catch (e) {
+                console.error('Failed to log error:', e);
+            }
+        }
+
+        function showError(message, error = null) {
+            const errorHtml = `
+                <div class="alert alert-danger" role="alert">
+                    <h5>Error</h5>
+                    <p>${message}</p>
+                </div>
+            `;
+            document.getElementById('map').innerHTML = errorHtml;
+
+            if (error) {
+                logError(error, {
+                    displayedMessage: message,
+                    context: 'map_error'
+                });
+            }
+        }
+
+        function hideLoadingSpinner() {
+            const spinner = document.querySelector('.map-loading');
+            if (spinner) {
+                spinner.style.display = 'none';
+            }
+        }
+
+        function showLoadingSpinner() {
+            const spinner = document.querySelector('.map-loading');
+            if (spinner) {
+                spinner.style.display = 'block';
+            }
+        }
+
+        // Create a square of coordinates around a center point
+        function createSquareCoordinates(centerLng, centerLat, sideLength) {
+            // Convert side length from kilometers to degrees
+            // Use more accurate conversion based on latitude
+            const latDegreeLength = sideLength / 111.32; // 1 degree latitude = 111.32 km
+            const lngDegreeLength = sideLength / (111.32 * Math.cos(centerLat * (Math.PI / 180))); // Adjust for latitude
+            
+            const halfLatSide = latDegreeLength / 2;
+            const halfLngSide = lngDegreeLength / 2;
+            
+            return [
+                [centerLng - halfLngSide, centerLat - halfLatSide],  // Bottom left
+                [centerLng + halfLngSide, centerLat - halfLatSide],  // Bottom right
+                [centerLng + halfLngSide, centerLat + halfLatSide],  // Top right
+                [centerLng - halfLngSide, centerLat + halfLatSide],  // Top left
+                [centerLng - halfLngSide, centerLat - halfLatSide]   // Back to start
+            ];
+        }
+
+        // Analyze the selected area
+        async function analyzeArea(coordinates) {
+            try {
+                showLoadingSpinner();
+                
+                const response = await fetch('/api/v1/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        area_geometry: {
+                            type: 'Polygon',
+                            coordinates: [coordinates]
+                        },
+                        analysis_mode: 'basic'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Display results
+                const resultsDiv = document.getElementById('analysis-results');
+                const resultsContent = document.getElementById('results-content');
+                
+                // Default values if data is incomplete
+                const riskLevel = data.risk_level || 'low';
+                const confidence = data.confidence || 0;
+                const factors = Array.isArray(data.factors) ? data.factors : [];
+                
+                // Determine alert class based on risk level
+                let alertClass = 'alert-success';
+                if (riskLevel.toLowerCase() === 'high') {
+                    alertClass = 'alert-danger';
+                } else if (riskLevel.toLowerCase() === 'moderate') {
+                    alertClass = 'alert-warning';
+                }
+                
+                resultsContent.innerHTML = `
+                    <div class="alert ${alertClass}">
+                        <h4>Risk Level: ${riskLevel.toUpperCase()}</h4>
+                        <p>Confidence: ${(confidence * 100).toFixed(1)}%</p>
+                    </div>
+                    <div class="mt-3">
+                        <h5>Contributing Factors:</h5>
+                        <ul>
+                            ${factors.map(factor => `<li>${factor}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+                
+                resultsDiv.style.display = 'block';
+                hideLoadingSpinner();
+                
+            } catch (error) {
+                console.error('Error analyzing area:', {
+                    message: error.message,
+                    stack: error.stack,
+                    details: JSON.stringify(error, ['message', 'name', 'stack'], 2)
+                });
+                showError(`Error analyzing area: ${error.message}`);
+                hideLoadingSpinner();
+            }
+        }
+
+        // Initialize map when the page loads
+        // Initialize map layers with sample data
+        function initializeMapLayers(overlays) {
+            // Add fire stations (verified locations in the Pinelands)
+            const fireStations = [
+                { name: 'New Lisbon Fire Company', coords: [39.9654, -74.6283], type: 'Main', equipment: '2 Engines, 1 Tanker' },
+                { name: 'Indian Mills Fire Company', coords: [39.7823, -74.7477], type: 'Main', equipment: '3 Engines, 1 Brush Truck' },
+                { name: 'Chatsworth Fire Company', coords: [39.8352, -74.5367], type: 'Main', equipment: '2 Engines, 2 Brush Trucks' },
+                { name: 'Green Bank Fire Company', coords: [39.6241, -74.5594], type: 'Satellite', equipment: '1 Engine, 1 Brush Truck' },
+                { name: 'Jenkins Fire Company', coords: [39.7012, -74.5312], type: 'Main', equipment: '2 Engines, 1 Tanker' }
+            ];
+
+            fireStations.forEach(station => {
+                const marker = L.marker(station.coords, {
+                    icon: L.divIcon({
+                        className: 'fire-station-icon',
+                        html: '<i class="bi bi-building-fill"></i>',
+                        iconSize: [20, 20]
+                    })
+                });
+                marker.bindPopup(`<b>${station.name}</b><br>Type: ${station.type}<br>Equipment: ${station.equipment}`);
+                overlays['Fire Stations'].addLayer(marker);
+            });
+
+            // Add water sources (verified locations)
+            const waterSources = [
+                { name: 'Pakim Pond', coords: [39.8234, -74.5312], type: 'Natural Pond', capacity: '250,000 gal', access: 'Direct' },
+                { name: 'Chatsworth Lake', coords: [39.8352, -74.5367], type: 'Lake', capacity: '2,000,000 gal', access: 'Boat Ramp' },
+                { name: 'Deep Hollow Pond', coords: [39.7823, -74.5477], type: 'Pond', capacity: '300,000 gal', access: 'Direct' },
+                { name: 'Harrisville Pond', coords: [39.6641, -74.5294], type: 'Lake', capacity: '1,500,000 gal', access: 'Multiple Points' },
+                { name: 'Oswego Lake', coords: [39.7112, -74.5212], type: 'Lake', capacity: '3,000,000 gal', access: 'Multiple Points' },
+                { name: 'Wells Mills Lake', coords: [39.7534, -74.3812], type: 'Lake', capacity: '1,800,000 gal', access: 'Boat Ramp' }
+            ];
+
+            waterSources.forEach(source => {
+                const marker = L.marker(source.coords, {
+                    icon: L.divIcon({
+                        className: 'water-source-icon',
+                        html: '<i class="bi bi-droplet-fill"></i>',
+                        iconSize: [20, 20]
+                    })
+                });
+                marker.bindPopup(`<b>${source.name}</b><br>Type: ${source.type}<br>Capacity: ${source.capacity}<br>Access: ${source.access}`);
+                overlays['Water Sources'].addLayer(marker);
+            });
+
+            // Add fire trails
+            const fireTrails = [
+                {
+                    name: 'Batona Trail Fire Break',
+                    path: [
+                        [39.8234, -74.5312],
+                        [39.8352, -74.5367],
+                        [39.8423, -74.5477],
+                        [39.8512, -74.5594]
+                    ],
+                    width: '20ft',
+                    surface: 'Gravel/Sand'
+                },
+                {
+                    name: 'Quaker Bridge Fire Line',
+                    path: [
+                        [39.7112, -74.5212],
+                        [39.7234, -74.5367],
+                        [39.7312, -74.5477]
+                    ],
+                    width: '15ft',
+                    surface: 'Packed Sand'
+                },
+                {
+                    name: 'Martha Fire Break',
+                    path: [
+                        [39.6641, -74.5294],
+                        [39.6712, -74.5367],
+                        [39.6823, -74.5477],
+                        [39.6912, -74.5594]
+                    ],
+                    width: '25ft',
+                    surface: 'Gravel'
+                }
+            ];
+
+            fireTrails.forEach(trail => {
+                const polyline = L.polyline(trail.path, {
+                    color: '#FF8C00',
+                    weight: 3,
+                    dashArray: '10, 10',
+                    opacity: 0.8
+                });
+                polyline.bindPopup(`<b>${trail.name}</b><br>Width: ${trail.width}<br>Surface: ${trail.surface}`);
+                overlays['Fire Trails'].addLayer(polyline);
+            });
+
+            // Add past fires with detailed data
+            const pastFires = [
+                {
+                    name: 'Spring Hill Fire',
+                    coords: [
+                        [39.8312, -74.5345],
+                        [39.8401, -74.5467],
+                        [39.8356, -74.5534],
+                        [39.8278, -74.5423]
+                    ],
+                    date: '2024-01-15',
+                    acres: 250,
+                    cause: 'Lightning strike',
+                    burnPattern: 'Crown fire with spotting',
+                    factors: ['High winds: 25mph gusts', 'Low humidity: 22%', 'Drought conditions'],
+                    containmentTime: '36 hours',
+                    fuelTypes: ['Pine', 'Scrub oak'],
+                    spreadDirection: 45, // NE spread
+                    spreadRate: 'Rapid',
+                    resources: ['5 engines', '2 helicopters', '45 personnel']
+                },
+                {
+                    name: 'Warren Grove Fire',
+                    coords: [
+                        [39.7456, -74.3789],
+                        [39.7534, -74.3912],
+                        [39.7612, -74.3867],
+                        [39.7589, -74.3745]
+                    ],
+                    date: '2023-08-22',
+                    acres: 1100,
+                    cause: 'Military training exercise',
+                    burnPattern: 'Wind-driven surface fire',
+                    factors: ['Strong winds: 20mph', 'Drought index: High', 'Temperature: 92°F'],
+                    containmentTime: '72 hours',
+                    fuelTypes: ['Pitch pine', 'Scrub oak', 'Grassland'],
+                    spreadDirection: 90, // E spread
+                    spreadRate: 'Very rapid',
+                    resources: ['8 engines', '3 helicopters', '2 fixed-wing', '120 personnel']
+                },
+                {
+                    name: 'Bass River Complex',
+                    coords: [
+                        [39.6234, -74.4412],
+                        [39.6345, -74.4534],
+                        [39.6412, -74.4489],
+                        [39.6378, -74.4367]
+                    ],
+                    date: '2023-05-17',
+                    acres: 780,
+                    cause: 'Illegal campfire',
+                    burnPattern: 'Ground fire with pockets of crown fire',
+                    factors: ['Dry fuel conditions', 'Low RH: 25%', 'Pine beetle damage'],
+                    containmentTime: '48 hours',
+                    fuelTypes: ['Dead pine', 'Mixed hardwood'],
+                    spreadDirection: 135, // SE spread
+                    spreadRate: 'Moderate',
+                    resources: ['6 engines', '1 helicopter', '60 personnel']
+                },
+                {
+                    name: 'Chatsworth Incident',
+                    coords: [
+                        [39.8123, -74.5234],
+                        [39.8234, -74.5345],
+                        [39.8345, -74.5289],
+                        [39.8256, -74.5167]
+                    ],
+                    date: '2022-09-30',
+                    acres: 450,
+                    cause: 'Equipment spark (Chain saw)',
+                    burnPattern: 'Slow-moving ground fire',
+                    factors: ['Moderate winds', 'Recent drought', 'Dense understory'],
+                    containmentTime: '24 hours',
+                    fuelTypes: ['Mixed pine-oak', 'Shrub layer'],
+                    spreadDirection: 180, // S spread
+                    spreadRate: 'Slow',
+                    resources: ['4 engines', '35 personnel']
+                },
+                {
+                    name: 'Governors Branch Fire',
+                    coords: [
+                        [39.7123, -74.6234],
+                        [39.7234, -74.6345],
+                        [39.7345, -74.6289],
+                        [39.7256, -74.6167]
+                    ],
+                    date: '2022-04-12',
+                    acres: 890,
+                    cause: 'Prescribed burn escape',
+                    burnPattern: 'Mosaic burn pattern',
+                    factors: ['Unexpected wind shift', 'Low fuel moisture', 'Complex terrain'],
+                    containmentTime: '56 hours',
+                    fuelTypes: ['Atlantic white cedar', 'Pitch pine'],
+                    spreadDirection: 225, // SW spread
+                    spreadRate: 'Moderate-rapid',
+                    resources: ['7 engines', '1 helicopter', '85 personnel']
+                },
+                {
+                    name: 'Double Trouble Fire',
+                    coords: [
+                        [39.9123, -74.2234],
+                        [39.9234, -74.2345],
+                        [39.9345, -74.2289],
+                        [39.9256, -74.2167]
+                    ],
+                    date: '2021-06-30',
+                    acres: 1500,
+                    cause: 'Lightning strike',
+                    burnPattern: 'Crown fire',
+                    factors: ['Severe thunderstorm', 'Drought conditions', 'High fuel load'],
+                    containmentTime: '96 hours',
+                    fuelTypes: ['Pine barrens', 'Mixed hardwood'],
+                    spreadDirection: 270, // W spread
+                    spreadRate: 'Very rapid',
+                    resources: ['12 engines', '3 helicopters', '150 personnel']
+                },
+                {
+                    name: 'Wharton State Forest Fire',
+                    coords: [
+                        [39.7823, -74.7123],
+                        [39.7934, -74.7234],
+                        [39.8045, -74.7189],
+                        [39.7956, -74.7067]
+                    ],
+                    date: '2021-04-15',
+                    acres: 2200,
+                    cause: 'Human-caused (Under investigation)',
+                    burnPattern: 'Complex multi-direction spread',
+                    factors: ['Multiple ignition points', 'Extreme drought', 'Strong variable winds'],
+                    containmentTime: '120 hours',
+                    fuelTypes: ['Mixed pine-oak', 'Cedar swamp', 'Grassland'],
+                    spreadDirection: 315, // NW spread
+                    spreadRate: 'Extreme',
+                    resources: ['15 engines', '4 helicopters', '2 fixed-wing', '200 personnel']
+                }
+            ];
+
+            pastFires.forEach(fire => {
+                // Calculate color based on fire size
+                const getFireColor = (acres) => {
+                    if (acres > 1000) return '#8B0000'; // dark red
+                    if (acres > 500) return '#FF0000';  // red
+                    return '#FF4500';                   // orange-red
+                };
+
+                const polygon = L.polygon(fire.coords, {
+                    color: getFireColor(fire.acres),
+                    fillColor: getFireColor(fire.acres),
+                    fillOpacity: 0.3,
+                    weight: 2
+                });
+
+                // Create detailed popup content
+                const popupContent = `
+                    <div class="fire-popup">
+                        <h4>${fire.name}</h4>
+                        <p><strong>Date:</strong> ${fire.date}</p>
+                        <p><strong>Area:</strong> ${fire.acres} acres</p>
+                        <p><strong>Cause:</strong> ${fire.cause}</p>
+                        <p><strong>Burn Pattern:</strong> ${fire.burnPattern}</p>
+                        <p><strong>Spread Rate:</strong> ${fire.spreadRate}</p>
+                        <p><strong>Containment Time:</strong> ${fire.containmentTime}</p>
+                        <p><strong>Contributing Factors:</strong></p>
+                        <ul>
+                            ${fire.factors.map(factor => `<li>${factor}</li>`).join('')}
+                        </ul>
+                        <p><strong>Resources Deployed:</strong></p>
+                        <ul>
+                            ${fire.resources.map(resource => `<li>${resource}</li>`).join('')}
+                        </ul>
+                        <p><strong>Fuel Types:</strong> ${fire.fuelTypes.join(', ')}</p>
+                    </div>
+                `;
+
+                polygon.bindPopup(popupContent, {
+                    maxWidth: 300,
+                    className: 'fire-popup'
+                });
+                overlays['Past Fires'].addLayer(polygon);
+
+                // Add fire spread indicators
+                if (fire.spreadDirection) {
+                    // Create arrow for fire spread direction
+                    const center = L.latLngBounds(fire.coords).getCenter();
+                    const angle = fire.spreadDirection;
+                    const arrowLength = 0.01; // Adjust based on map scale
+
+                    // Calculate arrow endpoint using angle and length
+                    const endLat = center.lat + arrowLength * Math.cos(angle * Math.PI / 180);
+                    const endLng = center.lng + arrowLength * Math.sin(angle * Math.PI / 180);
+
+                    // Create the arrow line
+                    const arrow = L.polyline([
+                        [center.lat, center.lng],
+                        [endLat, endLng]
+                    ], {
+                        color: '#FF4500',
+                        weight: 3,
+                        opacity: 0.8
+                    });
+
+                    // Add arrowhead
+                    const arrowHead = L.polyline([
+                        [endLat, endLng],
+                        [endLat - 0.005 * Math.cos((angle + 30) * Math.PI / 180), 
+                         endLng - 0.005 * Math.sin((angle + 30) * Math.PI / 180)],
+                        [endLat - 0.005 * Math.cos((angle - 30) * Math.PI / 180),
+                         endLng - 0.005 * Math.sin((angle - 30) * Math.PI / 180)],
+                        [endLat, endLng]
+                    ], {
+                        color: '#FF4500',
+                        weight: 3,
+                        opacity: 0.8,
+                        fill: true
+                    });
+
+                    overlays['Fire Spread'].addLayer(arrow);
+                    overlays['Fire Spread'].addLayer(arrowHead);
+                }
+            });
+
+            // Add vegetation density (sample heatmap)
+            const points = [];
+            for (let i = 0; i < 100; i++) {
+                const lat = 39.7 + Math.random() * 0.3;
+                const lng = -74.6 + Math.random() * 0.3;
+                const value = Math.random();
+                points.push([lat, lng, value]);
+            }
+
+            if (window.L.heatLayer) {
+                const heatLayer = L.heatLayer(points, {
+                    radius: 25,
+                    blur: 15,
+                    maxZoom: 10,
+                    gradient: {0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1: 'red'}
+                });
+                overlays['Vegetation Density'].addLayer(heatLayer);
+            }
+        }
+
+        window.addEventListener('load', () => {
+            try {
+                // Initialize map but keep it hidden
+                const mapDiv = document.getElementById('map');
+                mapDiv.style.display = 'none';
+                
+                const map = L.map('map', {
+                    zoomControl: true,
+                    scrollWheelZoom: true
+                });
+
+                // Base layers
+                const baseLayers = {
+                    'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '© OpenStreetMap contributors'
+                    }),
+                    'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                        maxZoom: 19,
+                        attribution: '© Esri'
+                    }),
+                    'Terrain': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+                        maxZoom: 19,
+                        attribution: '© Esri'
+                    })
+                };
+
+                // Add overlay layers
+                const overlays = {
+                    'Fire Stations': L.layerGroup([]),
+                    'Water Sources': L.layerGroup([]),
+                    'Fire Trails': L.layerGroup([]),
+                    'Vegetation Density': L.layerGroup([]),
+                    'Past Fires': L.layerGroup([]),
+                    'Fire Spread': L.layerGroup([])
+                };
+
+                // Add default base layer
+                baseLayers['OpenStreetMap'].addTo(map);
+
+                // Add layer control
+                L.control.layers(baseLayers, overlays, {
+                    collapsed: false,
+                    position: 'topright'
+                }).addTo(map);
+
+                // Add scale control
+                L.control.scale({
+                    imperial: true,
+                    metric: true,
+                    position: 'bottomleft'
+                }).addTo(map);
+
+                // Initialize layers with sample data
+                initializeMapLayers(overlays);
+
+                // Set map bounds
+                const bounds = L.latLngBounds(
+                    L.latLng(38.8, -75.5), // Southwest
+                    L.latLng(40.8, -73.5)  // Northeast
+                );
+                map.setMaxBounds(bounds);
+                map.setView([39.8, -74.5], 9);
+
+                // Add scale control
+                L.control.scale({
+                    imperial: true,
+                    metric: true
+                }).addTo(map);
+
+                // Store map in state for later use
+                state.map = map;
+
+                // Hide loading spinner once map is ready
+                hideLoadingSpinner();
+
+                // Add click handler for area selection
+                map.on('click', (e) => {
+                    const lat = e.latlng.lat;
+                    const lng = e.latlng.lng;
+                    console.log(`Clicked at: ${lng}, ${lat}`);
+
+                    try {
+                        // Create a 1km square box around the clicked point
+                        const coordinates = createSquareCoordinates(lng, lat, 1);
+                        
+                        // Remove previous selection if it exists
+                        if (state.selectedArea) {
+                            map.removeLayer(state.selectedArea);
+                        }
+
+                        // Convert coordinates to Leaflet format (lat, lng)
+                        const leafletCoords = coordinates.map(coord => [coord[1], coord[0]]);
+
+                        // Add new selection
+                        state.selectedArea = L.polygon(leafletCoords, {
+                            color: '#0080ff',
+                            fillColor: '#0080ff',
+                            fillOpacity: 0.3,
+                            weight: 2
+                        }).addTo(map);
+
+                        // Analyze the selected area
+                        analyzeArea(coordinates);
+                    } catch (error) {
+                        console.error('Error updating selection:', error);
+                        showError(`Error updating selection: ${error.message}`, error);
+                    }
+                });
+
+                map.on('error', (e) => {
+                    const errorDetails = {
+                        message: e.error || 'Unknown map error',
+                        stack: e.stack || '',
+                        details: JSON.stringify(e)
+                    };
+                    console.error('Map error:', errorDetails);
+                    showError(`Map error: ${errorDetails.message}`, e);
+                });
+
+                state.map = map;
+            } catch (error) {
+                const errorDetails = {
+                    message: error.message,
+                    stack: error.stack,
+                    details: JSON.stringify(error, ['message', 'name', 'stack'], 2)
+                };
+                console.error('Map initialization error:', errorDetails);
+                showError(`Failed to initialize map: ${error.message}`, error);
+            }
+        });
+    </script>
+</body>
+</html>

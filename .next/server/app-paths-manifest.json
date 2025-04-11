@@ -1,0 +1,8 @@
+{
+  "/page": "app/page.js",
+  "/api/current-weather/route": "app/api/current-weather/route.js",
+  "/api/fire_risk/route": "app/api/fire_risk/route.js",
+  "/api/map-data/route": "app/api/map-data/route.js",
+  "/api/analyze-weather/route": "app/api/analyze-weather/route.js",
+  "/api/fire-risk/route": "app/api/fire-risk/route.js"
+}
