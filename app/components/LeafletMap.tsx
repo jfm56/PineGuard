@@ -16,8 +16,7 @@ export default function LeafletMap(): JSX.Element {
     evacuationRoutes: any;
     fireStations: any;
     waterSources: any;
-    weather: any;
-  }>({ fireRisk: null, evacuationRoutes: null, fireStations: null, waterSources: null, weather: null });
+  }>({ fireRisk: null, evacuationRoutes: null, fireStations: null, waterSources: null });
 
   useEffect(() => {
     // Wait for Leaflet to be available
@@ -40,8 +39,7 @@ export default function LeafletMap(): JSX.Element {
       fireRisk: window.L.layerGroup().addTo(map),
       evacuationRoutes: window.L.layerGroup(),
       fireStations: window.L.layerGroup(),
-      waterSources: window.L.layerGroup(),
-      weather: window.L.layerGroup().addTo(map)
+      waterSources: window.L.layerGroup()
     };
     layersRef.current = layers;
 
@@ -99,36 +97,7 @@ export default function LeafletMap(): JSX.Element {
       }
     };
 
-    // Update weather overlay
-    const updateWeatherOverlay = async () => {
-      try {
-        const response = await fetch('/api/current-weather');
-        const data = await response.json();
-        
-        layers.weather.clearLayers();
 
-        // Add weather marker
-        const weatherIcon = window.L.divIcon({
-          html: `
-            <div class="bg-white/90 p-2 rounded-lg shadow-lg text-sm">
-              <div class="font-bold">${data.temperature}°F</div>
-              <div>${data.description}</div>
-              <div>${data.windSpeed} mph ${data.windDirection}</div>
-            </div>
-          `,
-          className: 'weather-icon',
-          iconSize: [100, 80]
-        });
-
-        window.L.marker([39.8, -74.5], { icon: weatherIcon })
-          .addTo(layers.weather);
-
-        // Update risk areas with weather data
-        updateRiskAreas();
-      } catch (error) {
-        console.error('Error updating weather:', error);
-      }
-    };
 
     // Update risk areas
     const updateRiskAreas = async () => {
@@ -245,26 +214,11 @@ export default function LeafletMap(): JSX.Element {
       updateRiskAreas();
     });
 
-    // Load initial data and start weather updates
+    // Load initial data
     loadMapData();
-    updateWeatherOverlay();
-    
-    // Update weather every 5 minutes
-    const weatherInterval = setInterval(updateWeatherOverlay, 5 * 60 * 1000);
-    
-    // Add weather layer toggle
-    document.getElementById('weatherLayer')?.addEventListener('change', (e) => {
-      const target = e.target as HTMLInputElement;
-      if (target.checked) {
-        map.addLayer(layers.weather);
-      } else {
-        map.removeLayer(layers.weather);
-      }
-    });
 
     // Cleanup
     return () => {
-      clearInterval(weatherInterval);
       map.remove();
     };
   }, []);

@@ -49,6 +49,16 @@ export default function MainMenu({ onClose }: MainMenuProps) {
               Dashboard
             </Link>
             <Link
+              href="/risk-prediction"
+              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              onClick={() => {
+                setIsOpen(false);
+                onClose();
+              }}
+            >
+              Risk Prediction
+            </Link>
+            <Link
               href="/fire-preparedness"
               className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
               onClick={() => {

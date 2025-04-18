@@ -5,9 +5,17 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function POST(req: NextRequest) {
+interface WeatherData {
+  temperature: number;
+  humidity: number;
+  windSpeed: number;
+  windDirection: number;
+  precipitation: number;
+}
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
-    const weatherData = await req.json();
+    const weatherData = await req.json() as WeatherData;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4",

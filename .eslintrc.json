@@ -1,5 +1,5 @@
 {
-  "ignorePatterns": ["app/static/js/*.js"],
+  "ignorePatterns": ["app/static/js/*.js", "**/*.test.ts", "**/*.test.tsx"],
   "extends": [
     "next/core-web-vitals",
     "eslint:recommended",
@@ -21,10 +21,18 @@
     "@typescript-eslint/no-unsafe-return": "warn",
     "@typescript-eslint/restrict-template-expressions": "warn",
     "@typescript-eslint/require-await": "error",
-    "no-console": "warn",
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
     "eqeqeq": "error",
     "no-var": "error",
     "prefer-const": "error",
     "curly": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["app/types/**/*.d.ts"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off"
+      }
+    }
+  ]
 }

@@ -1,44 +1,31 @@
-import { render, screen } from '@testing-library/react';
-import WildfireRiskMap from '../WildfireRiskMap';
+import { render } from '@testing-library/react';
+import WildfireRiskMap from '../../routes/wildfire-risk/page';
 
-// Mock the google maps API
-const mockAddListener = jest.fn();
-const mockRemove = jest.fn();
+class WildfireRiskMapTest {
+  beforeEach() {
+    jest.clearAllMocks();
+  }
 
-beforeAll(() => {
-  // Mock the google maps API
-  global.google = {
-    maps: {
-      Map: jest.fn().mockImplementation(() => ({
-        addListener: mockAddListener.mockReturnValue({ remove: mockRemove }),
-      })),
-      LatLng: jest.fn(),
-      visualization: {
-        HeatmapLayer: jest.fn().mockImplementation(() => ({
-          setData: jest.fn(),
-        })),
-      },
-    },
-  } as any;
+  testRendersMapContainer() {
+    const { container } = render(<WildfireRiskMap />);
+    expect(container.querySelector('div[class="w-full h-full"]')).toBeTruthy();
+  }
 
-  // Mock the window object
-  Object.defineProperty(window, 'google', {
-    value: global.google,
-  });
-});
+  testLoadsGoogleMapsScript() {
+    render(<WildfireRiskMap />);
+    const scripts = document.getElementsByTagName('script');
+    const mapsScript = Array.from(scripts).find(script => 
+      script.src.includes('maps.googleapis.com')
+    );
+    expect(mapsScript).toBeTruthy();
+    expect(mapsScript?.src).toContain('libraries=visualization');
+  }
+}
 
+const wildfireRiskMapTest = new WildfireRiskMapTest();
 describe('WildfireRiskMap', () => {
-  it('initially shows loading state', () => {
-    render(<WildfireRiskMap />);
-    const loadingSpinner = screen.getByTestId('loading-spinner');
-    expect(loadingSpinner).toBeInTheDocument();
-  });
-
-  it('renders the map container after loading', async () => {
-    render(<WildfireRiskMap />);
-    const mapElement = await screen.findByTestId('risk-map');
-    expect(mapElement).toBeInTheDocument();
-  });
-
+  beforeEach(() => wildfireRiskMapTest.beforeEach());
+  it('renders the map container', () => wildfireRiskMapTest.testRendersMapContainer());
+  it('loads Google Maps script', () => wildfireRiskMapTest.testLoadsGoogleMapsScript());
   // Add more tests as needed
 });

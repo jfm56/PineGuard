@@ -53,14 +53,15 @@ PineGuard is a comprehensive wildfire risk prediction and management system spec
 
 ## How It Works
 
-PineGuard employs a multi-layered approach to wildfire risk prediction:
+PineGuard employs a multi-layered approach to wildfire risk prediction and visualization:
 
-1. **Data Collection**
-   - Real-time weather data from NOAA APIs
-   - Satellite imagery from Sentinel Hub
-   - Local sensor networks for temperature and humidity
-   - Historical fire incident data
-   - Traffic patterns and road capacity information
+1. **Data Collection and Integration**
+   - Real-time weather data integration
+   - Google Maps Platform for visualization
+   - Historical wildfire incident data
+   - Environmental sensor networks
+   - Terrain and vegetation analysis
+   - Wind patterns and weather conditions
 
 2. **Risk Analysis**
    - Machine Learning: Ensemble of RandomForest, LightGBM, and CatBoost models
@@ -107,12 +108,27 @@ PineGuard employs a multi-layered approach to wildfire risk prediction:
 - Vegetation analysis
 
 ### 5. Interactive Visualization
-- Real-time risk maps
-- Satellite imagery overlay
-- Traffic and evacuation visualization
-- Historical data comparison
+- Real-time risk maps with Google Maps integration
+- Dynamic heatmap visualization of fire risk
+- Weather-based risk assessment
+- Fire spread simulation with wind factors
+- Historical wildfire data overlay
+- Interactive controls for risk analysis
 
 ## Installation
+
+### Development Setup
+```bash
+# Clone the repository
+git clone https://github.com/jfm56/PineGuard.git
+cd PineGuard
+
+# Install dependencies
+npm install
+
+# Run the development server
+npm run dev
+```
 
 ### Using Docker
 ```bash
@@ -120,7 +136,7 @@ PineGuard employs a multi-layered approach to wildfire risk prediction:
 docker pull jmullen029/pineguard
 
 # Run the container
-docker run -p 8080:8080 jmullen029/pineguard
+docker run -p 3000:3000 jmullen029/pineguard
 ```
 
 ### Manual Installation
@@ -777,10 +793,11 @@ kubectl apply -f k8s/
 
 #### Minimum Requirements (Single Instance)
 ```yaml
-CPU: 4 cores
-RAM: 16GB
-Storage: 100GB SSD
-GPU: Optional, NVIDIA T4 or better
+CPU: 2 cores
+RAM: 8GB
+Storage: 50GB SSD
+Node.js: v18 or higher
+NPM: v9 or higher
 ```
 
 #### Recommended Production Setup
@@ -813,16 +830,22 @@ Cache Layer:
 ```
 PineGuard/
 ├── app/
-│   ├── ml/              # Machine learning models
-│   ├── cv/              # Computer vision components
-│   ├── nlp/             # Natural language processing
-│   ├── risk_analysis/   # Risk analysis modules
-│   └── data_processing/ # Data processing utilities
-├── data/                # Data directory
-├── models/              # Trained models
-├── notebooks/          # Analysis notebooks
-├── tests/              # Test suite
-└── docker/             # Docker configuration
+│   ├── components/     # React components
+│   │   ├── WildfireRiskMap.tsx    # Main risk visualization
+│   │   ├── WeatherInfo.tsx        # Weather information
+│   │   └── ai/                    # AI-powered components
+│   ├── api/           # API routes
+│   ├── data/          # Data and types
+│   ├── utils/         # Utility functions
+│   │   ├── fireSpread.ts          # Fire spread simulation
+│   │   ├── weatherService.ts      # Weather data fetching
+│   │   └── wildfireAnalysis.ts    # Risk analysis
+│   ├── ml/            # Machine learning models
+│   ├── cv/            # Computer vision components
+│   └── nlp/           # Natural language processing
+├── public/            # Static files
+├── tests/             # Test suite
+└── docker/            # Docker configuration
 ```
 
 ### Running Tests

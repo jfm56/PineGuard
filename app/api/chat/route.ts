@@ -11,9 +11,14 @@ const openai = new OpenAI({
 
 export const runtime = 'edge';
 
-export async function POST(req: NextRequest) {
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export async function POST(req: NextRequest): Promise<Response> {
   try {
-    const body = await req.json();
+    const body = await req.json() as { messages: ChatMessage[] };
     const { messages } = body;
     if (!messages) {
       return new Response('Messages array is required', { status: 400 });
@@ -28,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     // Create a streaming response
     const stream = new ReadableStream({
-      async start(controller) {
+      async start(controller: ReadableStreamDefaultController): Promise<void> {
         try {
           const systemPrompt = `You are Firefighter Bill, an expert in wildfire prevention and response in the New Jersey Pinelands.
 
@@ -45,7 +50,7 @@ Respond in a friendly, helpful manner while maintaining professionalism. Keep re
           const response = await openai.chat.completions.create({
             messages: [
               { role: 'system', content: systemPrompt },
-              ...messages.map((msg: any) => ({
+              ...messages.map((msg: ChatMessage) => ({
                 role: msg.role,
                 content: msg.content,
               })),

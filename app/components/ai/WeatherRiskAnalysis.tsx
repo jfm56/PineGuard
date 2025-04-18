@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface WeatherData {
   temperature: number;
@@ -13,49 +13,13 @@ interface WeatherData {
   lastUpdated: string;
 }
 
-export default function WeatherRiskAnalysis() {
+export default function WeatherRiskAnalysis(): JSX.Element {
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [analysis, setAnalysis] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // Fetch weather data when component mounts
-    fetchWeatherData();
-  }, []);
-
-  const fetchWeatherData = async () => {
-    try {
-      console.log('Fetching weather data...');
-      const response = await fetch('/api/current-weather', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-      console.log('Weather API response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Weather API error response:', errorText);
-        throw new Error(`Failed to fetch weather data: ${response.status} ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log('Weather API response data:', data);
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      setWeatherData(data);
-    } catch (error) {
-      console.error('Error fetching weather:', error);
-      setWeatherData(null);
-    }
-  };
-
-  const analyzeRisk = async () => {
-    if (!weatherData) {return;}
+  const analyzeRisk = useCallback(async () => {
+    if (!weatherData) return;
 
     setLoading(true);
     try {
@@ -67,21 +31,48 @@ export default function WeatherRiskAnalysis() {
         body: JSON.stringify(weatherData),
       });
 
-      const data = await response.json();
+      const data = await response.json() as { analysis: string };
       setAnalysis(data.analysis);
     } catch (error) {
-      console.error('Error analyzing weather risk:', error);
       setAnalysis('Error analyzing weather risk. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [weatherData]);
+
+  const fetchWeatherData = useCallback(async () => {
+    try {
+      const response = await fetch('/api/current-weather', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch weather data: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json() as WeatherData & { error?: string };
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      setWeatherData(data);
+    } catch (error) {
+      setWeatherData(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchWeatherData();
+  }, [fetchWeatherData]);
 
   useEffect(() => {
     if (weatherData) {
-      analyzeRisk();
+      void analyzeRisk();
     }
-  }, [weatherData]);
+  }, [weatherData, analyzeRisk]);
 
   if (!weatherData) {
     return (
@@ -126,7 +117,7 @@ export default function WeatherRiskAnalysis() {
       </div>
 
       <button
-        onClick={analyzeRisk}
+        onClick={() => void analyzeRisk()}
         disabled={loading}
         className="w-full py-2 px-4 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
       >

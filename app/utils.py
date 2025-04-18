@@ -1,3 +1,4 @@
+"""Utility functions for the application."""
 from pathlib import Path
 
 import numpy as np
@@ -7,7 +8,8 @@ from rasterio.mask import mask
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from shapely.geometry import mapping
 
-def reproject_raster(src_path: Path, dst_path: Path, dst_crs: str):
+
+def reproject_raster(src_path: Path, dst_path: Path, dst_crs: str) -> None:
     """Reproject a raster to a new coordinate system"""
     with rasterio.open(src_path) as src:
         transform, width, height = calculate_default_transform(
@@ -33,8 +35,13 @@ def reproject_raster(src_path: Path, dst_path: Path, dst_crs: str):
                     resampling=Resampling.nearest
                 )
 
-def calculate_zonal_statistics(vector_path: Path, raster_path: Path):
-    """Calculate zonal statistics for vector features using a raster"""
+
+
+
+
+def calculate_zonal_statistics(vector_path: Path, raster_path: Path) -> gpd.GeoDataFrame:
+    """Calculate zonal statistics for vector features using a raster."""
+    # Add period to docstring to fix flake8 D400
     with rasterio.open(raster_path) as src:
         gdf = gpd.read_file(vector_path)
         stats = []
@@ -56,6 +63,10 @@ def calculate_zonal_statistics(vector_path: Path, raster_path: Path):
             gdf[f'raster_{stat}'] = [s[stat] for s in stats]
 
         return gdf
+
+
+
+
 
 def generate_report(output_path: Path):
     """Generate a PDF report with risk analysis results"""

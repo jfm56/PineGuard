@@ -1,11 +1,11 @@
 import { GridCell } from './wildfireAnalysis';
 
-interface WindConditions {
+export interface WindConditions {
   speed: number;   // mph
   direction: number; // degrees (0-360, 0 = North, 90 = East)
 }
 
-interface SpreadParameters {
+export interface SpreadParameters {
   ignitionPoint: {
     lat: number;
     lng: number;
@@ -15,7 +15,7 @@ interface SpreadParameters {
   timeStep: number; // minutes
 }
 
-interface FireCell extends GridCell {
+export interface FireCell extends GridCell {
   burning: boolean;
   burnStartTime: number | null;
   burnDuration: number | null;

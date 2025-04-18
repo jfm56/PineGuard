@@ -193,26 +193,22 @@ export function calculateRiskScore(factors: RiskFactors, cell: GridCell): number
 
 export function updateRiskMap(
   grid: GridCell[][],
-  currentWeather: Wildfire['weatherConditions'],
   fires: Wildfire[]
 ): GridCell[][] {
   // Calculate historical fire density
   calculateHistoricalDensity(fires, grid);
 
-  // Get normalized weather factors
-  const weatherFactors = normalizeWeatherData(currentWeather);
-
   // Update risk scores for each cell
   grid.forEach(row => {
     row.forEach(cell => {
-      // Combine historical density with current factors
-      const riskFactors: RiskFactors = {
-        ...weatherFactors,
-        historicalDensity: cell.riskScore // Use previously calculated historical density
-      };
-
-      // Calculate final risk score
-      cell.riskScore = calculateRiskScore(riskFactors, cell);
+      // Calculate final risk score based on historical density and environmental factors
+      cell.riskScore = calculateRiskScore({
+        historicalDensity: cell.riskScore, // Use previously calculated historical density
+        temperature: 75, // Default moderate temperature
+        humidity: 50, // Default moderate humidity
+        windSpeed: 10, // Default moderate wind speed
+        seasonality: 0.5 // Default moderate season risk
+      }, cell);
     });
   });
 

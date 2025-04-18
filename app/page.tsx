@@ -10,9 +10,9 @@ import EmergencyPlanGenerator from './components/ai/EmergencyPlanGenerator';
 import WeatherRiskAnalysis from './components/ai/WeatherRiskAnalysis';
 import MapLayers from './components/MapLayers';
 import WildfireHistory from './components/WildfireHistory';
-import WildfireRiskMap from './components/WildfireRiskMap';
 
-export default function Home() {
+
+export default function Home(): JSX.Element {
   return (
     <main className="min-h-screen p-4">
       <div className="container mx-auto relative z-50">
@@ -75,11 +75,6 @@ export default function Home() {
               <WildfireHistory />
             </div>
 
-            {/* Wildfire Risk Map */}
-            <div className="glass-container p-6">
-              <h2 className="text-xl font-bold mb-4">Wildfire Risk Prediction</h2>
-              <WildfireRiskMap />
-            </div>
           </div>
         </div>
       </div>

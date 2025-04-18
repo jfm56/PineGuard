@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from app.api import fire_risk, map_data  # Import the fire risk and map data modules
 
-from .logger import logger, log_action, log_api_request, log_error
+from app.logger import logger, log_action, log_api_request, log_error
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -29,7 +29,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Include the routers
 app.include_router(fire_risk.router)

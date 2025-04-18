@@ -1,0 +1,1644 @@
+'use client';
+
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { loadScript } from '../utils/loadScript';
+import { simulateFireSpread } from '../utils/fireSpread';
+import { createAnalysisGrid } from '../utils/wildfireAnalysis';
+import { api } from '../services/api';
+
+declare global {
+  interface Window {
+    google: typeof google;
+    initMap: () => void;
+  }
+}
+
+// Core interfaces
+interface GridCell {
+  lat: number;
+  lng: number;
+  riskScore: number;
+  historicalFires: number;
+  environmentalFactors: {
+    vegetation: {
+      density: number;
+      fuelType: string;
+      ndvi: number;
+    };
+    terrain: {
+      elevation: number;
+      slope: number;
+    };
+    vegetationRisk: number;
+  };
+}
+interface SimulationParams {
+  windSpeed: number;
+  windDirection: number;
+  humidity: number;
+  temperature: number;
+  duration: number;
+}
+
+interface HeatmapData {
+  location: google.maps.LatLng;
+  weight: number;
+}
+
+interface MapState {
+  map: google.maps.Map | null;
+  heatmap: google.maps.visualization.HeatmapLayer | null;
+  riskData: GridCell[];
+  selectedCell: GridCell | null;
+  simulationParams: SimulationParams;
+  showFireSimulation: boolean;
+  loading: boolean;
+}
+
+interface FireCell extends GridCell {
+  intensity: number;
+  burning: boolean;
+  burnStartTime: number;
+  burnDuration: number;
+  spreadProbability: number;
+}
+
+interface SpreadParameters {
+  ignitionPoint: { lat: number; lng: number };
+  windConditions: { speed: number; direction: number };
+  duration: number;
+  timeStep: number;
+}
+
+
+
+declare namespace google.maps {
+  class Map extends MVCObject {
+    constructor(mapDiv: Element | null, opts?: MapOptions);
+    setOptions(options: MapOptions): void;
+  }
+
+  class MVCObject {
+    addListener(eventName: string, handler: Function): MapsEventListener;
+  }
+
+  class LatLng {
+    constructor(lat: number, lng: number);
+    lat(): number;
+    lng(): number;
+  }
+
+  interface MapOptions {
+    center: LatLngLiteral;
+    zoom: number;
+    mapTypeId?: string;
+    zoomControl?: boolean;
+    scaleControl?: boolean;
+    mapTypeControl?: boolean;
+    streetViewControl?: boolean;
+    rotateControl?: boolean;
+    fullscreenControl?: boolean;
+    styles?: MapTypeStyle[];
+  }
+
+  interface LatLngLiteral {
+    lat: number;
+    lng: number;
+  }
+
+  interface MapTypeStyle {
+    elementType?: string;
+    featureType?: string;
+    stylers: Array<{ color: string }>;
+  }
+
+  interface MapsEventListener {
+    remove(): void;
+  }
+
+  namespace visualization {
+    class HeatmapLayer {
+      constructor(opts: HeatmapLayerOptions);
+      setData(data: MVCArray<WeightedLocation> | Array<WeightedLocation>): void;
+      setMap(map: Map | null): void;
+    }
+
+    interface HeatmapLayerOptions {
+      map?: Map;
+      data?: MVCArray<WeightedLocation> | Array<WeightedLocation>;
+      radius?: number;
+      opacity?: number;
+      gradient?: string[];
+    }
+
+    interface WeightedLocation {
+      location: LatLng;
+      weight: number;
+    }
+  }
+
+  class MVCArray<T> {
+    constructor(array?: T[]);
+    push(elem: T): number;
+    getArray(): T[];
+  }
+
+  interface MouseEvent {
+    latLng: LatLng;
+  }
+}
+
+
+
+
+
+
+
+
+
+          }
+  }
+}
+
+// Utility functions
+const getWindDirection = (degrees: number): string => {
+  const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const index = Math.round(degrees / 45) % 8;
+  return directions[index];
+};
+
+const DEFAULT_SIMULATION_PARAMS: SimulationParams = {
+  windSpeed: 10,
+  windDirection: 0,
+  humidity: 30,
+  temperature: 25,
+  duration: 6
+};
+
+const DEFAULT_MAP_OPTIONS: google.maps.MapOptions = {
+  center: { lat: 39.8283, lng: -74.5411 },
+  zoom: 10,
+  mapTypeId: google.maps.MapTypeId.SATELLITE,
+  zoomControl: true,
+  scaleControl: true,
+  mapTypeControl: false,
+  streetViewControl: false,
+  rotateControl: false,
+  fullscreenControl: true,
+  styles: [
+    {
+      featureType: 'all',
+      elementType: 'labels',
+      stylers: [{ visibility: 'off' }]
+    },
+    {
+      featureType: 'administrative.locality',
+      elementType: 'all',
+      stylers: [{ visibility: 'on' }]
+    }
+  ]
+};
+  center: { lat: 39.8097, lng: -74.9760 }, // Pine Barrens center
+  zoom: 10,
+  mapTypeId: 'terrain',
+  zoomControl: true,
+  scaleControl: true,
+  streetViewControl: false,
+  fullscreenControl: true,
+  styles: [
+    {
+      featureType: 'landscape',
+      elementType: 'geometry',
+      stylers: [{ color: '#1B4332' }]
+    }
+  ]
+};
+
+
+
+const DEFAULT_SIMULATION_PARAMS: SimulationParams = {
+  windSpeed: 10,
+  windDirection: 0,
+  humidity: 30,
+  temperature: 25,
+  duration: 1
+};
+
+const WildfireRiskMap: React.FC = () => {
+  // Refs
+  const mapRef = useRef<HTMLDivElement>(null);
+  
+  // State management
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [heatmap, setHeatmap] = useState<google.maps.visualization.HeatmapLayer | null>(null);
+  const [riskData, setRiskData] = useState<GridCell[]>([]);
+  const [selectedCell, setSelectedCell] = useState<GridCell | null>(null);
+  const [simulationParams, setSimulationParams] = useState<SimulationParams>(DEFAULT_SIMULATION_PARAMS);
+  const [showFireSimulation, setShowFireSimulation] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  // Initialize map and fetch data
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    const map = new window.google.maps.Map(mapRef.current, DEFAULT_MAP_OPTIONS);
+    setMap(map);
+
+    return () => {
+      // Cleanup
+      if (heatmap) {
+        heatmap.setMap(null);
+      }
+      if (map) {
+        map.setMap(null);
+      }
+    };
+  }, []);
+
+  // Update heatmap when risk data changes
+  useEffect(() => {
+    if (!map || !riskData.length) return;
+
+    const heatmapData = riskData.map(cell => ({
+      location: new google.maps.LatLng(cell.lat, cell.lng),
+      weight: cell.riskScore
+    }));
+
+    const newHeatmap = new google.maps.visualization.HeatmapLayer({
+      data: heatmapData,
+      map,
+      radius: 20,
+      opacity: 0.8,
+      gradient: [
+        'rgba(0, 255, 255, 0)',
+        'rgba(0, 255, 255, 1)',
+        'rgba(0, 191, 255, 1)',
+        'rgba(0, 127, 255, 1)',
+        'rgba(0, 63, 255, 1)',
+        'rgba(0, 0, 255, 1)',
+        'rgba(0, 0, 223, 1)',
+        'rgba(0, 0, 191, 1)',
+        'rgba(0, 0, 159, 1)',
+        'rgba(0, 0, 127, 1)',
+        'rgba(63, 0, 91, 1)',
+        'rgba(127, 0, 63, 1)',
+        'rgba(191, 0, 31, 1)',
+        'rgba(255, 0, 0, 1)'
+      ]
+    });
+
+    setHeatmap(prev => {
+      if (prev) prev.setMap(null);
+      return newHeatmap;
+    });
+
+    return () => {
+      if (newHeatmap) {
+        newHeatmap.setMap(null);
+      }
+    };
+  }, [map, riskData]);
+  // Refs
+  const mapRef = useRef<HTMLDivElement>(null);
+
+  // State management
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [heatmap, setHeatmap] = useState<google.maps.visualization.HeatmapLayer | null>(null);
+  const [riskData, setRiskData] = useState<GridCell[]>([]);
+  const [selectedCell, setSelectedCell] = useState<GridCell | null>(null);
+  const [simulationParams, setSimulationParams] = useState<SimulationParams>({
+    windSpeed: 10,
+    windDirection: 0,
+    humidity: 30,
+    temperature: 25,
+    duration: 6
+  });
+  const [showFireSimulation, setShowFireSimulation] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Initialize map
+  const initMap = useCallback(() => {
+    if (!mapRef.current) return;
+
+    const mapOptions: google.maps.MapOptions = {
+      ...DEFAULT_MAP_OPTIONS,
+      center: new google.maps.LatLng(39.8283, -74.5411)
+    };
+
+    const newMap = new google.maps.Map(mapRef.current, mapOptions);
+    setMap(newMap);
+
+    // Create heatmap layer
+    const heatmapLayer = new google.maps.visualization.HeatmapLayer({
+      map: newMap,
+      data: [],
+      radius: 20,
+      opacity: 0.7,
+      gradient: [
+        'rgba(0, 255, 0, 0)',
+        'rgba(0, 255, 0, 1)',
+        'rgba(255, 255, 0, 1)',
+        'rgba(255, 0, 0, 1)'
+      ]
+    });
+    setHeatmap(heatmapLayer);
+
+    // Add click listener
+    const clickListener = newMap.addListener('click', (event: google.maps.MouseEvent) => {
+      if (!event.latLng) return;
+      
+      const clickedLat = event.latLng.lat();
+      const clickedLng = event.latLng.lng();
+
+      const cell = riskData.find(cell => {
+        return Math.abs(cell.lat - clickedLat) < 0.01 && 
+               Math.abs(cell.lng - clickedLng) < 0.01;
+      });
+
+      setSelectedCell(cell || null);
+    });
+
+    return () => {
+      clickListener.remove();
+    };
+  }, [riskData]);
+
+  // Load map
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadMapAndData = async () => {
+      try {
+        setLoading(true);
+        await loadScript();
+        if (isMounted && mapRef.current) {
+          initMap();
+          const analysisGrid = await createAnalysisGrid();
+          setRiskData(analysisGrid);
+        }
+      } catch (error) {
+        console.error('Failed to initialize map:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadMapAndData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [initMap]);
+  // Refs
+  const mapRef = useRef<HTMLDivElement>(null);
+  
+  // Individual state hooks for better performance and type safety
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [heatmap, setHeatmap] = useState<google.maps.visualization.HeatmapLayer | null>(null);
+  const [riskData, setRiskData] = useState<GridCell[]>([]);
+  const [selectedCell, setSelectedCell] = useState<GridCell | null>(null);
+  const [simulationParams, setSimulationParams] = useState<SimulationParams>(DEFAULT_SIMULATION_PARAMS);
+  const [showFireSimulation, setShowFireSimulation] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [heatmap, setHeatmap] = useState<google.maps.visualization.HeatmapLayer | null>(null);
+  const [riskData, setRiskData] = useState<GridCell[]>([]);
+  const [selectedCell, setSelectedCell] = useState<GridCell | null>(null);
+  const [simulationParams, setSimulationParams] = useState<SimulationParams>(DEFAULT_SIMULATION_PARAMS);
+  const [showFireSimulation, setShowFireSimulation] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const updateMap = useCallback((newMap: google.maps.Map | null) => {
+    setMap(newMap);
+  }, []);
+
+  const updateHeatmap = useCallback((newHeatmap: google.maps.visualization.HeatmapLayer | null) => {
+    setHeatmap(newHeatmap);
+  }, []);
+
+  const updateRiskData = useCallback((newRiskData: GridCell[]) => {
+    setRiskData(newRiskData);
+  }, []);
+
+  const updateSelectedCell = useCallback((cell: GridCell | null) => {
+    setSelectedCell(cell);
+  }, []);
+
+  const updateSimulationParams = useCallback((params: SimulationParams) => {
+    setSimulationParams(params);
+  }, []);
+
+  const toggleFireSimulation = useCallback((show: boolean) => {
+    setShowFireSimulation(show);
+  }, []);
+
+  const setLoadingState = useCallback((isLoading: boolean) => {
+    setLoading(isLoading);
+  }, []);
+    map: null,
+    heatmap: null,
+    riskData: [],
+    selectedCell: null,
+    simulationParams: DEFAULT_SIMULATION_PARAMS,
+    showFireSimulation: false,
+    loading: false
+  });
+
+  const { map, heatmap, riskData, selectedCell, simulationParams, showFireSimulation, loading } = mapState;
+
+
+  // State update handler with memoization to prevent unnecessary re-renders
+  // Memoized state setters
+  const setMap = useCallback((newMap: google.maps.Map | null) => {
+    setMap(newMap);
+  }, []);
+  
+  const setHeatmap = useCallback((newHeatmap: google.maps.visualization.HeatmapLayer | null) => {
+    setHeatmap(newHeatmap);
+  }, []);
+  
+  const setRiskData = useCallback((newRiskData: GridCell[]) => {
+    setMapState(prev => ({ ...prev, riskData: newRiskData }));
+  }, []);
+  
+  const setSelectedCell = useCallback((newCell: GridCell | null) => {
+    setMapState(prev => ({ ...prev, selectedCell: newCell }));
+  }, []);
+  
+  const setSimulationParams = useCallback((newParams: SimulationParams) => {
+    setMapState(prev => ({ ...prev, simulationParams: newParams }));
+  }, []);
+  
+  const setShowFireSimulation = useCallback((show: boolean) => {
+    setShowFireSimulation(show);
+  }, []);
+
+  // Handle map click events
+  const handleMapClick = useCallback(async (event: google.maps.MouseEvent) => {
+    if (!event.latLng) return;
+    
+    setMapState(prev => ({ ...prev, loading: true }));
+    const lat = event.latLng.lat();
+    const lng = event.latLng.lng();
+    
+    try {
+      // Create analysis grid centered on click
+      const grid = await createAnalysisGrid(lat, lng);
+      const centerCell = grid[0][0];
+      setSelectedCell(centerCell);
+      
+      // Update heatmap with new risk data
+      const newHeatmapData = grid.flat().map(cell => ({
+        location: new google.maps.LatLng(cell.lat, cell.lng),
+        weight: cell.riskScore
+      }));
+      
+      setRiskData(grid.flat());
+      if (heatmap) {
+        heatmap.setData(newHeatmapData);
+      }
+    } catch (error) {
+      console.error('Error analyzing location:', error);
+    } finally {
+      setMapState(prev => ({ ...prev, loading: false }));
+    }
+  }, [heatmap, setRiskData, setSelectedCell]);
+  const updateMapState = useCallback((updates: Partial<MapState>) => {
+    setMapState(prev => ({ ...prev, ...updates }));
+  }, []);
+
+  // Handle map click events
+  const handleMapClick = useCallback(async (event: google.maps.MouseEvent) => {
+    if (!event.latLng) return;
+    
+    setMapState(prev => ({ ...prev, loading: true }));
+    const clickedLocation = event.latLng;
+    
+    try {
+      // Create analysis grid centered on click
+      const grid = await createAnalysisGrid(clickedLocation.lat(), clickedLocation.lng());
+      setSelectedCell(grid[0][0]); // Select center cell
+      
+      // Update heatmap with new risk data
+      const newRiskData = grid.flat().map(cell => ({
+        location: new google.maps.LatLng(cell.lat, cell.lng),
+        weight: cell.riskFactor
+      }));
+      
+      setRiskData(newRiskData);
+      if (heatmap) {
+        heatmap.setData(newRiskData);
+      }
+    } catch (error) {
+      console.error('Error analyzing location:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [heatmap, setRiskData, setSelectedCell, setLoading]);
+
+  // Initialize map when component mounts
+  useEffect(() => {
+    const initializeMap = async () => {
+      if (!mapRef.current) return;
+
+      try {
+        await loadScript('https://maps.googleapis.com/maps/api/js?libraries=visualization');
+        
+        const newMap = new google.maps.Map(mapRef.current, DEFAULT_MAP_OPTIONS);
+        setMap(newMap);
+
+        const newHeatmap = new google.maps.visualization.HeatmapLayer({
+          map: newMap,
+          data: [],
+          radius: 20,
+          opacity: 0.8
+        });
+        setHeatmap(newHeatmap);
+
+        // Add click listener
+        newMap.addListener('click', handleMapClick);
+      } catch (error) {
+        console.error('Error initializing map:', error);
+      }
+    };
+
+    initializeMap();
+
+    return () => {
+      if (map) {
+        // Clean up map instance
+        const parent = mapRef.current?.parentElement;
+        if (parent && mapRef.current) {
+          parent.removeChild(mapRef.current);
+        }
+      }
+      if (heatmap) {
+        heatmap.setMap(null);
+      }
+    };
+  }, [handleMapClick, setMap, setHeatmap]);
+
+  // Update simulation when parameters change
+  useEffect(() => {
+    if (!selectedCell || !showFireSimulation) return;
+
+    const updateSimulation = async () => {
+      setMapState(prev => ({ ...prev, loading: true }));
+      
+      try {
+        const simulatedData = await simulateFireSpread({
+          startPoint: { lat: selectedCell.lat, lng: selectedCell.lng },
+          windSpeed: simulationParams.windSpeed,
+          windDirection: simulationParams.windDirection,
+          humidity: simulationParams.humidity,
+          temperature: simulationParams.temperature,
+          duration: simulationParams.duration
+        });
+
+        const newHeatmapData = simulatedData.map(point => ({
+          location: new google.maps.LatLng(point.lat, point.lng),
+          weight: point.intensity
+        }));
+
+        setRiskData(newHeatmapData);
+        if (heatmap) {
+          heatmap.setData(newHeatmapData);
+        }
+      } catch (error) {
+        console.error('Error updating simulation:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    updateSimulation();
+  }, [selectedCell, simulationParams, showFireSimulation, heatmap, setRiskData, setLoading]);
+  const setHeatmap = useCallback((newHeatmap: google.maps.visualization.HeatmapLayer | null) => updateMapState('heatmap', newHeatmap), [updateMapState]);
+  const setRiskData = useCallback((newRiskData: HeatmapData[]) => updateMapState('riskData', newRiskData), [updateMapState]);
+  const setSelectedCell = useCallback((newCell: GridCell | null) => updateMapState('selectedCell', newCell), [updateMapState]);
+  const setSimulationParams = useCallback((newParams: SimulationParams) => updateMapState('simulationParams', newParams), [updateMapState]);
+  const setShowFireSimulation = useCallback((show: boolean) => updateMapState('showFireSimulation', show), [updateMapState]);
+  const setLoading = useCallback((isLoading: boolean) => updateMapState('loading', isLoading), [updateMapState]);
+
+  // Handle map click events
+  const handleMapClick = useCallback(async (event: google.maps.MouseEvent) => {
+    if (!event.latLng) return;
+    
+    setMapState(prev => ({ ...prev, loading: true }));
+    const clickedLocation = event.latLng;
+    
+    try {
+      // Create analysis grid centered on click
+      const grid = await createAnalysisGrid(clickedLocation.lat(), clickedLocation.lng());
+      setSelectedCell(grid[0][0]); // Select center cell
+      
+      // Update heatmap with new risk data
+      const newRiskData = grid.flat().map(cell => ({
+        location: new google.maps.LatLng(cell.lat, cell.lng),
+        weight: cell.riskFactor
+      }));
+      
+      setRiskData(newRiskData);
+      if (heatmap) {
+        heatmap.setData(newRiskData);
+      }
+    } catch (error) {
+      console.error('Error analyzing location:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [heatmap, setRiskData, setSelectedCell, setLoading]);
+
+  // Initialize map when component mounts
+  useEffect(() => {
+    const initializeMap = async () => {
+      if (!mapRef.current) return;
+
+      try {
+        await loadScript('https://maps.googleapis.com/maps/api/js?libraries=visualization');
+        
+        const newMap = new google.maps.Map(mapRef.current, DEFAULT_MAP_OPTIONS);
+        setMap(newMap);
+
+        const newHeatmap = new google.maps.visualization.HeatmapLayer({
+          map: newMap,
+          data: [],
+          radius: 20,
+          opacity: 0.8
+        });
+        setHeatmap(newHeatmap);
+
+        // Add click listener
+        newMap.addListener('click', handleMapClick);
+      } catch (error) {
+        console.error('Error initializing map:', error);
+      }
+    };
+
+    initializeMap();
+
+    return () => {
+      if (map) {
+        // Clean up map instance
+        const parent = mapRef.current?.parentElement;
+        if (parent && mapRef.current) {
+          parent.removeChild(mapRef.current);
+        }
+      }
+    };
+  }, [handleMapClick, setMap, setHeatmap]);
+
+  // Update simulation when parameters change
+  useEffect(() => {
+    if (!selectedCell || !showFireSimulation) return;
+
+    const updateSimulation = async () => {
+      setMapState(prev => ({ ...prev, loading: true }));
+      
+      try {
+        const simulatedData = await simulateFireSpread({
+          startPoint: { lat: selectedCell.lat, lng: selectedCell.lng },
+          windSpeed: simulationParams.windSpeed,
+          windDirection: simulationParams.windDirection,
+          humidity: simulationParams.humidity,
+          temperature: simulationParams.temperature,
+          duration: simulationParams.duration
+        });
+
+        const newHeatmapData = simulatedData.map(point => ({
+          location: new google.maps.LatLng(point.lat, point.lng),
+          weight: point.intensity
+        }));
+
+        setRiskData(newHeatmapData);
+        if (heatmap) {
+          heatmap.setData(newHeatmapData);
+        }
+      } catch (error) {
+        console.error('Error updating simulation:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    updateSimulation();
+  }, [selectedCell, simulationParams, showFireSimulation, heatmap, setRiskData, setLoading]);
+  const setHeatmap = useCallback((newHeatmap: google.maps.visualization.HeatmapLayer | null) => updateMapState('heatmap', newHeatmap), [updateMapState]);
+  const setRiskData = useCallback((newRiskData: HeatmapData[]) => updateMapState('riskData', newRiskData), [updateMapState]);
+  const setSelectedCell = useCallback((newCell: GridCell | null) => updateMapState('selectedCell', newCell), [updateMapState]);
+  const setSimulationParams = useCallback((newParams: SimulationParams) => updateMapState('simulationParams', newParams), [updateMapState]);
+  const setShowFireSimulation = useCallback((show: boolean) => updateMapState('showFireSimulation', show), [updateMapState]);
+  const setLoading = useCallback((isLoading: boolean) => updateMapState('loading', isLoading), [updateMapState]);
+
+  // Initialize map when component mounts
+  useEffect(() => {
+    const initializeMap = async () => {
+      if (!mapRef.current) return;
+
+      await loadScript('https://maps.googleapis.com/maps/api/js?libraries=visualization');
+      
+      const newMap = new google.maps.Map(mapRef.current, DEFAULT_MAP_OPTIONS);
+      setMap(newMap);
+
+      const newHeatmap = new google.maps.visualization.HeatmapLayer({
+        map: newMap,
+        data: [],
+        radius: 20,
+        opacity: 0.8
+      });
+      setHeatmap(newHeatmap);
+    };
+
+    initializeMap().catch(console.error);
+
+    return () => {
+      if (map) {
+        // Clean up map instance
+        const parent = mapRef.current?.parentElement;
+        if (parent) {
+          parent.removeChild(mapRef.current);
+        }
+      }
+    };
+  }, []);
+
+interface HeatmapData {
+  location: google.maps.LatLng;
+  weight: number;
+}
+
+interface FireCell extends GridCell {
+  intensity: number;
+  burning: boolean;
+  burnStartTime: number;
+  burnDuration: number;
+  spreadProbability: number;
+}
+
+interface SpreadParameters {
+  ignitionPoint: { lat: number; lng: number };
+  windConditions: { speed: number; direction: number };
+  duration: number;
+  timeStep: number;
+}
+
+interface SimulationParams {
+  windSpeed: number;
+  windDirection: number;
+  duration: number;
+  humidity: number;
+  temperature: number;
+}
+
+const getWindDirection = (degrees: number): string => {
+  const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const index = Math.round(degrees / 45) % 8;
+  return directions[index];
+};
+
+const WildfireRiskMap = (): React.ReactElement => {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [heatmap, setHeatmap] = useState<google.maps.visualization.HeatmapLayer | null>(null);
+  const [riskData, setRiskData] = useState<GridCell[][]>(createAnalysisGrid());
+  const [selectedCell, setSelectedCell] = useState<GridCell | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [simulationParams, setSimulationParams] = useState<SimulationParams>({ 
+    windSpeed: 10,
+    windDirection: 0,
+    humidity: 30,
+    temperature: 25,
+    duration: 60
+  });
+  const [showFireSimulation, setShowFireSimulation] = useState(false);
+
+  // Update heatmap data
+  const updateHeatmap = useCallback((fireSpreadData: FireCell[][]) => {
+    if (!heatmap) return;
+
+    const heatmapData: HeatmapData[] = fireSpreadData.flat().map((point: FireCell) => ({
+      location: new google.maps.LatLng(point.lat, point.lng),
+      weight: point.intensity
+    }));
+
+    heatmap.setData(heatmapData);
+  }, [heatmap]);
+
+  // Initialize map
+  const initMap = useCallback(async () => {
+    if (!mapRef.current || !window.google?.maps) return;
+    setMapState(prev => ({ ...prev, loading: true }));
+
+    // Ensure the map container has the correct size
+    mapRef.current.style.width = '100%';
+    mapRef.current.style.height = '100%';
+
+    const mapOptions = {
+      center: { lat: 39.8, lng: -74.6 }, // Center of Pine Barrens
+      zoom: 10,
+      mapTypeId: window.google.maps.MapTypeId.TERRAIN,
+      zoomControl: true,
+      scaleControl: true,
+      mapTypeControl: false,
+      streetViewControl: false,
+      rotateControl: false,
+      fullscreenControl: false,
+      styles: [
+        { elementType: 'geometry', stylers: [{ color: '#1B4332' }] },
+        { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
+        { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] }
+      ]
+    };
+
+    const newMap = new window.google.maps.Map(mapRef.current, mapOptions);
+    setMap(newMap);
+
+    // Initialize heatmap layer
+    const heatmapLayer = new window.google.maps.visualization.HeatmapLayer({
+      map: newMap,
+      radius: 20,
+      opacity: 0.7,
+      gradient: [
+        'rgba(0, 255, 0, 0)',
+        'rgba(40, 255, 40, 0.6)',
+        'rgba(255, 255, 0, 0.7)',
+        'rgba(255, 50, 0, 0.8)'
+      ]
+    });
+
+    setHeatmap(heatmapLayer);
+    setLoading(false);
+  }, []);
+
+  // Load Google Maps script
+  useEffect(() => {
+    const loadGoogleMaps = async () => {
+      try {
+        await loadScript('https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=visualization');
+        await initMap();
+      } catch (error) {
+        console.error('Error loading Google Maps:', error);
+      }
+    };
+
+    loadGoogleMaps();
+  }, [initMap]);
+
+  // Handle click events and update risk data
+  useEffect(() => {
+    if (!map || !heatmap) return;
+
+    const handleMapClick = (e: google.maps.MouseEvent) => {
+      if (!e.latLng) return;
+
+      const clickedLat = e.latLng.lat();
+      const clickedLng = e.latLng.lng();
+
+      // Find the nearest cell
+      const cell = riskData.flat().find((cell: GridCell) => {
+        const latDiff = Math.abs(cell.lat - clickedLat);
+        const lngDiff = Math.abs(cell.lng - clickedLng);
+        return latDiff < 0.01 && lngDiff < 0.01;
+      });
+
+      if (cell) {
+        setSelectedCell(cell);
+
+        if (showFireSimulation) {
+          const params: SpreadParameters = {
+            ignitionPoint: { lat: cell.lat, lng: cell.lng },
+            windConditions: {
+              speed: simulationParams.windSpeed,
+              direction: simulationParams.windDirection
+            },
+            duration: simulationParams.duration,
+            timeStep: 1
+          };
+
+          const fireSpreadData = simulateFireSpread(riskData, params);
+          updateHeatmap(fireSpreadData as FireCell[][]);
+        }
+      }
+    };
+
+    if (map) {
+      const clickListener = google.maps.event.addListener(map, 'click', handleMapClick);
+      return () => clickListener.remove();
+    }
+
+      return () => {
+      isMounted = false;
+    };
+  }, [map, heatmap, riskData, showFireSimulation, simulationParams, updateHeatmap]);
+            timeStep: 1
+          };
+
+          const fireSpreadData = simulateFireSpread(riskData, params);
+          updateHeatmap(fireSpreadData as FireCell[][]);
+        }
+      }
+    };
+
+    const listener = google.maps.event.addListener(map, 'click', handleMapClick);
+
+    return () => {
+      google.maps.event.removeListener(listener);
+    };
+  }, [map, heatmap, showFireSimulation, simulationParams, riskData, setSelectedCell, updateHeatmap]);
+
+  if (loading) {
+    return <div>Loading map...</div>;
+  }
+
+  return (
+    <div className="relative h-full">
+      <div
+        ref={mapRef}
+        className="w-full h-full rounded-lg overflow-hidden"
+        style={{ minHeight: '600px' }}
+      />
+      {selectedCell && (
+        <div className="absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg">
+          <h3 className="font-bold">Selected Cell</h3>
+          <p>Lat: {selectedCell.lat.toFixed(4)}</p>
+          <p>Lng: {selectedCell.lng.toFixed(4)}</p>
+          <p>Risk Score: {selectedCell.riskScore.toFixed(2)}</p>
+          <button
+            onClick={() => setShowFireSimulation(!showFireSimulation)}
+            className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            {showFireSimulation ? 'Hide' : 'Show'} Fire Simulation
+          </button>
+          {showFireSimulation && (
+            <div className="mt-4">
+              <h4 className="font-bold">Simulation Parameters</h4>
+              <div className="space-y-2">
+                <div>
+                  <label>Wind Speed (m/s):</label>
+                  <input
+                    type="number"
+                    value={simulationParams.windSpeed}
+                    onChange={(e) => setSimulationParams(prev => ({
+                      ...prev,
+                      windSpeed: Number(e.target.value)
+                    }))}
+                    className="w-full mt-1 px-2 py-1 border rounded"
+                  />
+                </div>
+                <div>
+                  <label>Wind Direction (deg):</label>
+                  <input
+                    type="number"
+                    value={simulationParams.windDirection}
+                    onChange={(e) => setSimulationParams(prev => ({
+                      ...prev,
+                      windDirection: Number(e.target.value)
+                    }))}
+                    className="w-full mt-1 px-2 py-1 border rounded"
+                  />
+                </div>
+                <div>
+                  <label>Duration (min):</label>
+                  <input
+                    type="number"
+                    value={simulationParams.duration}
+                    onChange={(e) => setSimulationParams(prev => ({
+                      ...prev,
+                      duration: Number(e.target.value)
+                    }))}
+                    className="w-full mt-1 px-2 py-1 border rounded"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+ 
+    windSpeed: 10,
+    windDirection: 0,
+    duration: 60
+  });
+  const [showFireSimulation, setShowFireSimulation] = useState<boolean>(false);
+
+  // Update heatmap data
+  const updateHeatmap = useCallback((fireSpreadData: FireCell[][]) => {
+    if (!heatmap) return;
+
+    const heatmapData = fireSpreadData.flat().map((point: FireCell) => ({
+      location: new google.maps.LatLng(point.lat, point.lng),
+      weight: point.intensity || 1
+    }));
+
+    heatmap.setData(heatmapData);
+  }, [heatmap]);
+
+  // Initialize map
+  const initMap = useCallback(async () => {
+    if (!mapRef.current || !window.google?.maps) return;
+    setMapState(prev => ({ ...prev, loading: true }));
+
+    const newMap = new window.google.maps.Map(mapRef.current, {
+      center: { lat: 39.8, lng: -74.6 },
+      zoom: 10,
+      mapTypeId: 'terrain',
+      zoomControl: true,
+      scaleControl: true,
+      mapTypeControl: false,
+      streetViewControl: false,
+      rotateControl: false,
+      fullscreenControl: false,
+      styles: [
+        { elementType: 'geometry', stylers: [{ color: '#1B4332' }] },
+        { elementType: 'labels.text.fill', stylers: [{ color: '#8ec3b9' }] },
+        { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] }
+      ]
+    });
+
+    setMap(newMap);
+
+    // Initialize heatmap layer
+    const heatmapLayer = new google.maps.visualization.HeatmapLayer({
+      map: newMap,
+      data: []
+    });
+
+    setHeatmap(heatmapLayer);
+    setLoading(false);
+  }, []);
+
+
+  // Update heatmap data
+  const updateHeatmap = useCallback((fireSpreadData: FireCell[][]) => {
+    if (!heatmap) return;
+
+    const heatmapData = fireSpreadData.flat().map((point: FireCell) => ({
+      location: new google.maps.LatLng(point.lat, point.lng),
+      weight: point.intensity || 1
+    }));
+
+    heatmap.setData(heatmapData);
+  }, [heatmap]);
+
+  // Initialize map
+  const initMap = useCallback(async () => {
+    if (!mapRef.current || !window.google?.maps) return;
+    setMapState(prev => ({ ...prev, loading: true }));
+
+    const newMap = new window.google.maps.Map(mapRef.current, {
+      center: { lat: 39.8, lng: -74.6 },
+      zoom: 10,
+      mapTypeId: 'terrain',
+      zoomControl: true,
+      scaleControl: true,
+      mapTypeControl: false,
+      streetViewControl: false,
+      rotateControl: false,
+      fullscreenControl: false
+    });
+
+    setMap(newMap);
+
+    // Initialize heatmap layer
+    const heatmapLayer = new google.maps.visualization.HeatmapLayer({
+      map: newMap,
+      data: []
+    });
+
+    setHeatmap(heatmapLayer);
+    setLoading(false);
+  }, []);
+
+
+  const updateHeatmap = useCallback((fireSpreadData: FireCell[][]) => {
+    if (!heatmap) return;
+
+    const heatmapData = fireSpreadData.flat().map((point: FireCell) => ({
+      location: new google.maps.LatLng(point.lat, point.lng),
+      weight: point.intensity || 1
+    }));
+
+    heatmap.setData(heatmapData);
+  }, [heatmap]);
+
+  // Initialize the map
+  const initMap = useCallback(async () => {
+    if (!mapRef.current || !window.google?.maps) return;
+    setMapState(prev => ({ ...prev, loading: true }));
+
+    // Ensure the map container has the correct size
+    mapRef.current.style.width = '100%';
+    mapRef.current.style.height = '100%';
+
+    const newMap = new window.google.maps.Map(mapRef.current, {
+      center: { lat: 39.8, lng: -74.6 }, // Center of Pine Barrens
+      zoom: 10,
+      mapTypeId: 'terrain',
+      zoomControl: true,
+      scaleControl: true,
+      mapTypeControl: false,
+      streetViewControl: false,
+      rotateControl: false,
+      fullscreenControl: false,
+      styles: [
+
+  // Initialize the map
+  const initMap = async () => {
+    if (!mapRef.current || !window.google?.maps) return;
+    setMapState(prev => ({ ...prev, loading: true }));
+
+    // Ensure the map container has the correct size
+    mapRef.current.style.width = '100%';
+    mapRef.current.style.height = '100%';
+
+    const mapOptions = {
+      center: { lat: 39.8, lng: -74.6 }, // Center of Pine Barrens
+      zoom: 10,
+      mapTypeId: google.maps.MapTypeId.TERRAIN,
+      zoomControl: true,
+      scaleControl: true,
+      mapTypeControl: false,
+      streetViewControl: false,
+      rotateControl: false,
+      fullscreenControl: false,
+      styles: [
+          { elementType: 'geometry', stylers: [{ color: '#1B4332' }] },
+          { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
+          { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
+          {
+            featureType: 'administrative.locality',
+            elementType: 'labels.text.fill',
+            stylers: [{ color: '#d59563' }]
+          },
+          {
+            featureType: 'poi',
+            elementType: 'labels.text.fill',
+            stylers: [{ color: '#d59563' }]
+          },
+          {
+            featureType: 'poi.park',
+            elementType: 'geometry',
+            stylers: [{ color: '#263c3f' }]
+          },
+          {
+            featureType: 'poi.park',
+            elementType: 'labels.text.fill',
+            stylers: [{ color: '#6b9a76' }]
+          },
+          {
+            featureType: 'road',
+            elementType: 'geometry',
+            stylers: [{ color: '#38414e' }]
+          },
+          {
+            featureType: 'road',
+            elementType: 'geometry.stroke',
+            stylers: [{ color: '#212a37' }]
+          },
+          {
+            featureType: 'road',
+            elementType: 'labels.text.fill',
+            stylers: [{ color: '#9ca5b3' }]
+          },
+          {
+            featureType: 'road.highway',
+            elementType: 'geometry',
+            stylers: [{ color: '#746855' }]
+          },
+          {
+            featureType: 'road.highway',
+            elementType: 'geometry.stroke',
+            stylers: [{ color: '#1f2835' }]
+          },
+          {
+            featureType: 'road.highway',
+            elementType: 'labels.text.fill',
+            stylers: [{ color: '#f3d19c' }]
+          },
+          {
+            featureType: 'transit',
+            elementType: 'geometry',
+            stylers: [{ color: '#2f3948' }]
+          },
+          {
+            featureType: 'transit.station',
+            elementType: 'labels.text.fill',
+            stylers: [{ color: '#d59563' }]
+          },
+          {
+            featureType: 'water',
+            elementType: 'geometry',
+            stylers: [{ color: '#17263c' }]
+          },
+          {
+            featureType: 'water',
+            elementType: 'labels.text.fill',
+            stylers: [{ color: '#515c6d' }]
+          },
+          {
+            featureType: 'water',
+            elementType: 'labels.text.stroke',
+            stylers: [{ color: '#17263c' }]
+          }
+        ]
+      };
+
+      });
+      setMap(newMap);
+
+      // Initialize heatmap layer
+      const heatmapLayer = new google.maps.visualization.HeatmapLayer({
+        map: newMap,
+        radius: 20,
+        opacity: 0.7,
+        gradient: [
+          'rgba(0, 255, 0, 0)',
+          'rgba(40, 255, 40, 0.6)',
+          'rgba(255, 255, 0, 0.7)',
+          'rgba(255, 50, 0, 0.8)'
+        ]
+      });
+      setHeatmap(heatmapLayer);
+    };
+
+  const updateRiskData = async () => {
+    // Create and update risk grid
+    const grid = createAnalysisGrid();
+    const updatedGrid = updateRiskMap(grid, wildfires);
+    setRiskData(updatedGrid);
+
+    // Convert grid data to heatmap data
+    if (heatmap) {
+      const heatmapData = updatedGrid.flatMap(row =>
+        row.map(cell => ({
+          location: new google.maps.LatLng(cell.lat, cell.lng),
+          weight: cell.riskScore * 100 // Scale up for better visualization
+        }))
+      );
+
+      heatmap.setData(heatmapData);
+    }
+  };
+
+  // Handle click events and fire simulation
+  useEffect(() => {
+    if (!map || !heatmap) return;
+
+    const clickListener = (e: google.maps.MapMouseEvent) => {
+      if (!e.latLng) return;
+
+      const clickedLat = e.latLng.lat();
+      const clickedLng = e.latLng.lng();
+
+      // Find the nearest cell
+      const cell = riskData.flat().find((cell: GridCell) => {
+        const latDiff = Math.abs(cell.lat - clickedLat);
+        const lngDiff = Math.abs(cell.lng - clickedLng);
+        return latDiff < 0.01 && lngDiff < 0.01;
+      });
+
+      setSelectedCell(cell || null);
+
+      if (cell && showFireSimulation) {
+        // Run fire simulation from clicked point
+        const params: SpreadParameters = {
+          ignitionPoint: { lat: cell.lat, lng: cell.lng },
+          windConditions: {
+            speed: simulationParams.windSpeed,
+            direction: simulationParams.windDirection
+          },
+          duration: simulationParams.duration,
+          timeStep: 0.1
+        };
+
+        const simulated = simulateFireSpread(riskData, params);
+
+        // Update heatmap data with simulation results
+        const heatmapData: HeatmapData = simulated.map((point: FireCell) => ({
+          location: new google.maps.LatLng(point.lat, point.lng),
+          weight: point.spreadProbability
+        }));
+        heatmap.setData(heatmapData);
+      }
+      if (!e.latLng) return;
+
+      const clickedLat = e.latLng.lat();
+      const clickedLng = e.latLng.lng();
+
+      // Find the nearest cell
+      const cell = riskData.flat().find(cell => {
+        const latDiff = Math.abs(cell.lat - clickedLat);
+        const lngDiff = Math.abs(cell.lng - clickedLng);
+        return latDiff < 0.01 && lngDiff < 0.01;
+      });
+
+      setSelectedCell(cell || null);
+
+      if (cell && showFireSimulation) {
+        // Run fire simulation from clicked point
+        const simulated = simulateFireSpread(riskData, {
+          ignitionPoint: { lat: cell.lat, lng: cell.lng },
+          windConditions: {
+            speed: simulationParams.windSpeed,
+            direction: simulationParams.windDirection
+          },
+          duration: simulationParams.duration
+        });
+
+        // Update heatmap data with simulation results
+        if (heatmap) {
+          const heatmapData = simulated.map(point => ({
+            location: new google.maps.LatLng(point.lat, point.lng),
+            weight: point.intensity * 100
+          }));
+          heatmap.setData(heatmapData);
+        }
+      }
+    };
+      if (!e.latLng) return;
+    const clickedLat = e.latLng.lat();
+    const clickedLng = e.latLng.lng();
+
+      // Find the nearest cell
+      const cell = riskData.flat().find(cell => {
+        const latDiff = Math.abs(cell.lat - clickedLat);
+        const lngDiff = Math.abs(cell.lng - clickedLng);
+        return latDiff < 0.01 && lngDiff < 0.01;
+      });
+
+      setSelectedCell(cell || null);
+
+      if (cell && showFireSimulation) {
+        // Run fire simulation from clicked point
+        const simulated = simulateFireSpread(riskData, {
+          ignitionPoint: { lat: cell.lat, lng: cell.lng },
+          windConditions: {
+            speed: simulationParams.windSpeed,
+            direction: simulationParams.windDirection
+          },
+          duration: simulationParams.duration,
+          timeStep: 5 // 5-minute intervals
+        });
+
+        // Update heatmap with simulation data
+        const simulationData = simulated.flatMap(row =>
+          row.map(cell => ({
+            location: new google.maps.LatLng(cell.lat, cell.lng),
+            weight: cell.burning ? 1 : cell.spreadProbability
+          }))
+        );
+
+        heatmap.setData(simulationData);
+      }
+    };
+
+    const listener = (map as any).addListener('click', clickListener);
+
+    return () => {
+      listener.remove();
+    };
+  }, [map, heatmap, showFireSimulation, simulationParams, riskData, setSelectedCell]);
+
+  // Load Google Maps and initialize
+  useEffect(() => {
+    const loadGoogleMaps = async (): Promise<void> => {
+      try {
+        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+        if (!apiKey) {
+          throw new Error('Google Maps API key is not configured');
+        }
+
+        // Load Google Maps if not already loaded
+        const scriptElement = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
+        
+        if (!scriptElement) {
+          await loadScript(
+            `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=visualization`,
+            'google-maps-api'
+          );
+        }
+        
+        // Wait for Google Maps to be fully loaded
+        while (!window.google?.maps?.Map) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        // Initialize the map
+        await initMap();
+        setLoading(false);
+
+        // Update risk data after map is initialized
+        updateRiskData();
+      } catch (error) {
+        console.error('Error loading Google Maps:', error);
+        setLoading(false);
+      }
+    };
+
+    loadGoogleMaps();
+  }, []);
+
+  useEffect(() => {
+    if (!map || !heatmap) {return;}
+
+    const updateRiskData = async () => {
+      try {
+        // Create and update risk grid
+        const grid = createAnalysisGrid();
+        const updatedGrid = updateRiskMap(grid, wildfires);
+        setRiskData(updatedGrid);
+
+        // Convert grid data to heatmap data
+        if (heatmap) {
+          const heatmapData = updatedGrid.flatMap(row =>
+            row.map(cell => ({
+              location: new google.maps.LatLng(cell.lat, cell.lng),
+              weight: cell.riskScore * 100 // Scale up for better visualization
+            }))
+          );
+
+          heatmap.setData(heatmapData);
+        }
+
+        // Add click listener for cell selection
+        const clickListener = (e: { latLng?: { lat: () => number; lng: () => number } }): void => {
+          const latLng = e.latLng;
+          if (!latLng) {return;}
+
+          const clickedLat = latLng.lat();
+          const clickedLng = latLng.lng();
+
+          // Find the nearest cell
+          const cell = updatedGrid.flat().find(cell => {
+            const latDiff = Math.abs(cell.lat - clickedLat);
+            const lngDiff = Math.abs(cell.lng - clickedLng);
+            return latDiff < 0.01 && lngDiff < 0.01;
+          });
+
+          setSelectedCell(cell || null);
+
+          if (cell && showFireSimulation) {
+            // Run fire simulation from clicked point
+            const simulated = simulateFireSpread(updatedGrid, {
+              ignitionPoint: { lat: cell.lat, lng: cell.lng },
+              windConditions: {
+                speed: simulationParams.windSpeed,
+                direction: simulationParams.windDirection
+              },
+              duration: simulationParams.duration,
+              timeStep: 5 // 5-minute intervals
+            });
+
+            // Update heatmap with simulation data
+            const simulationData = simulated.flatMap(row =>
+              row.map(cell => ({
+                location: new google.maps.LatLng(cell.lat, cell.lng),
+                weight: cell.burning ? 1 : cell.spreadProbability
+              }))
+            );
+
+            heatmap.setData(simulationData);
+          }
+        };
+
+        // Add click listener to map
+        const listener = (map as any).addListener('click', clickListener);
+
+        return () => {
+          listener.remove();
+        };
+      } catch (error) {
+        console.error('Error updating risk data:', error);
+        return () => {}; // Return empty cleanup function in case of error
+      }
+    };
+
+    updateRiskData();
+  }, [map, heatmap]);
+
+  return (
+    <div className="relative h-full">
+      {loading ? (
+        <div className="w-full h-full rounded-lg overflow-hidden flex items-center justify-center bg-[#1B4332]">
+          <div data-testid="loading-spinner" className="animate-spin rounded-full h-8 w-8 border-2 border-white/30 border-t-white" />
+        </div>
+      ) : (
+        <div className="relative h-full">
+          <div 
+            ref={mapRef}
+            id="risk-map" 
+            data-testid="risk-map" 
+            className="w-full h-full rounded-lg overflow-hidden bg-[#1B4332] relative"
+            style={{ minHeight: '600px' }}
+          />
+          
+          {/* Selected Cell Info Overlay */}
+          {selectedCell && (
+            <div className="absolute top-4 left-4 bg-[#1B4332]/90 p-4 rounded-lg shadow-lg max-w-sm">
+              <h4 className="font-semibold mb-2 text-white">Location Analysis</h4>
+              <div className="text-sm space-y-2 text-white/80">
+                <div className="flex justify-between">
+                  <span>Risk Score:</span>
+                  <span className="font-semibold text-white">{(selectedCell.riskScore * 100).toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Historical Fires:</span>
+                  <span className="font-semibold text-white">{selectedCell.historicalFires}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Vegetation Type:</span>
+                  <span className="font-semibold text-white">{selectedCell.environmentalFactors.vegetation.fuelType}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Vegetation Density:</span>
+                  <span className="font-semibold text-white">{(selectedCell.environmentalFactors.vegetation.density * 100).toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Elevation:</span>
+                  <span className="font-semibold text-white">{selectedCell.environmentalFactors.terrain.elevation.toFixed(1)}m</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Slope:</span>
+                  <span className="font-semibold text-white">{selectedCell.environmentalFactors.terrain.slope.toFixed(1)}°</span>
+                </div>
+                <div className="mt-2 text-xs text-white/60">
+                  Coordinates: {selectedCell.lat.toFixed(4)}, {selectedCell.lng.toFixed(4)}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Prediction Controls Overlay */}
+          <div className="absolute bottom-4 right-4 bg-[#1B4332]/90 p-4 rounded-lg shadow-lg w-72">
+            <h3 className="text-sm font-semibold mb-3 text-white">Prediction Controls</h3>
+            <div className="text-xs space-y-3">
+              <div>
+                <label className="block mb-1 text-white/80">Wind Speed (mph)</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="30"
+                  value={simulationParams.windSpeed}
+                  onChange={(e) => setSimulationParams(prev => ({ ...prev, windSpeed: parseInt(e.target.value) }))}
+                  className="w-full mb-1 accent-blue-500"
+                />
+                <span className="text-white/80">{simulationParams.windSpeed} mph</span>
+              </div>
+              <div>
+                <label className="block mb-1 text-white/80">Wind Direction</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="360"
+                  value={simulationParams.windDirection}
+                  onChange={(e) => setSimulationParams(prev => ({ ...prev, windDirection: parseInt(e.target.value) }))}
+                  className="w-full mb-1 accent-blue-500"
+                />
+                <span className="text-white/80">{getWindDirection(simulationParams.windDirection)}</span>
+              </div>
+              <div>
+                <label className="block mb-1 text-white/80">Prediction Window</label>
+                <input
+                  type="range"
+                  min="1"
+                  max="12"
+                  value={simulationParams.duration}
+                  onChange={(e) => setSimulationParams(prev => ({ ...prev, duration: parseInt(e.target.value) }))}
+                  className="w-full mb-1 accent-blue-500"
+                />
+                <span className="text-white/80">{simulationParams.duration} hours</span>
+              </div>
+              <button
+                onClick={() => setShowFireSimulation(!showFireSimulation)}
+                className="mt-2 w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm"
+              >
+                {showFireSimulation ? 'Hide' : 'Show'} Prediction
+              </button>
+            </div>
+          </div>
+
+          {/* Legend Overlay */}
+          <div className="absolute bottom-4 left-4 bg-[#1B4332]/90 p-4 rounded-lg shadow-lg">
+            <h3 className="text-sm font-semibold mb-2 text-white">Risk Level</h3>
+            <div className="space-y-2">
+              <div className="w-48 h-2 bg-gradient-to-r from-green-400 via-yellow-400 to-red-500 rounded-full" />
+              <div className="flex justify-between text-xs text-white/80">
+                <span>Low</span>
+                <span>Medium</span>
+                <span>High</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default WildfireRiskMap;
