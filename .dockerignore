@@ -35,7 +35,6 @@ data/raw/
 data/processed/
 data/external/
 notebooks/
-tests/
 docs/
 README.md
 LICENSE
