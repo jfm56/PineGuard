@@ -20,9 +20,14 @@ FROM continuumio/miniconda3 AS backend-builder
 WORKDIR /app
 
 # 1) Setup conda environment with geospatial & app deps
-RUN conda config --add channels conda-forge && \
-    conda config --set channel_priority strict && \
-    conda install -y python=3.11 fastapi uvicorn slowapi numpy pandas geopandas shapely rasterio && \
+RUN conda install -y \
+      -c conda-forge \
+      -c pytorch \
+      python=3.11 \
+      fastapi uvicorn slowapi numpy pandas geopandas shapely rasterio \
+      catboost albumentations opencv \
+      pytest pytest-cov pytest-asyncio optuna pytorch && \
+    pip install shap opencv-python-headless && \
     conda clean -afy
 
 # 2) Debug
