@@ -19,7 +19,7 @@ export default function WeatherRiskAnalysis(): JSX.Element {
   const [loading, setLoading] = useState(false);
 
   const analyzeRisk = useCallback(async () => {
-    if (!weatherData) return;
+    if (!weatherData) { return; }
 
     setLoading(true);
     try {
@@ -48,13 +48,13 @@ export default function WeatherRiskAnalysis(): JSX.Element {
           'Accept': 'application/json'
         }
       });
-      if (!response.ok) {
+      if (!response.ok) { 
         const errorText = await response.text();
         throw new Error(`Failed to fetch weather data: ${response.status} ${errorText}`);
       }
 
       const data = await response.json() as WeatherData & { error?: string };
-      if (data.error) {
+      if (data.error) { 
         throw new Error(data.error);
       }
 
@@ -69,12 +69,12 @@ export default function WeatherRiskAnalysis(): JSX.Element {
   }, [fetchWeatherData]);
 
   useEffect(() => {
-    if (weatherData) {
+    if (weatherData) { 
       void analyzeRisk();
     }
   }, [weatherData, analyzeRisk]);
 
-  if (!weatherData) {
+  if (!weatherData) { 
     return (
       <div className="glass-container p-6 space-y-4">
         <h2 className="text-xl font-bold text-white">Weather Risk Analysis</h2>

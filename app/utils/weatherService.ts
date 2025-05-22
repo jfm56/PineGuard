@@ -20,14 +20,30 @@ export async function getCurrentWeather(lat: number, lng: number): Promise<Weath
     throw new Error('Failed to fetch weather data');
   }
 
-  const data = await response.json();
+  type OpenWeatherResponse = {
+    main: {
+      temp: number;
+      humidity: number;
+    };
+    wind: {
+      speed: number;
+    };
+    rain?: {
+      '1h'?: number;
+    };
+    weather: Array<{
+      description: string;
+    }>;
+  };
+
+  const data = (await response.json()) as OpenWeatherResponse;
 
   return {
-    temperature: Math.round(data.main.temp),
-    humidity: data.main.humidity,
-    windSpeed: Math.round(data.wind.speed),
-    precipitation: data.rain?.['1h'] || 0,
-    description: data.weather[0].description
+    temperature: Math.round(data.main?.temp ?? 0),
+    humidity: data.main?.humidity ?? 0,
+    windSpeed: Math.round(data.wind?.speed ?? 0),
+    precipitation: data.rain?.['1h'] ?? 0,
+    description: data.weather?.[0]?.description ?? ''
   };
 }
 

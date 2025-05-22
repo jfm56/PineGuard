@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 
-export default function AiTest() {
+export default function AiTest(): JSX.Element {
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const generateHaiku = async () => {
+  const generateHaiku = async (): Promise<void> => {
     setLoading(true);
     try {
       const response = await fetch('/api/generate', {
@@ -21,9 +21,15 @@ export default function AiTest() {
         }),
       });
 
-      const data = await response.json();
-      if (data.result) {
-        setResult(data.result.content);
+      const data: unknown = await response.json();
+      if (
+        typeof data === 'object' && data !== null &&
+        'result' in data &&
+        typeof (data as { result?: { content?: string } }).result === 'object' &&
+        (data as { result?: { content?: string } }).result !== null &&
+        typeof (data as { result: { content?: string } }).result.content === 'string'
+      ) {
+        setResult((data as { result: { content: string } }).result.content);
       }
     } catch (error) {
       console.error('Error:', error);
@@ -36,7 +42,7 @@ export default function AiTest() {
   return (
     <div className="p-4">
       <button
-        onClick={generateHaiku}
+        onClick={() => { void generateHaiku(); }}
         disabled={loading}
         className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
       >

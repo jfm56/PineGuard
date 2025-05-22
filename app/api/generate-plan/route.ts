@@ -7,7 +7,7 @@ const openai = new OpenAI({
 
 export const runtime = 'edge';
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<Response> {
   try {
     const planDetails = await req.json();
 

@@ -54,19 +54,19 @@ def clear_cache():
     })
 
 
-def test_get_cached_data_empty():
+def test_get_cached_data_empty(app_fixture, test_client_fixture):
     """Test getting data from empty cache."""
     assert get_cached_data('weather') is None
 
 
-def test_get_cached_data_expired():
+def test_get_cached_data_expired(app_fixture, test_client_fixture):
     """Test getting expired data from cache."""
     cache['weather'] = {'temp': 75}
     cache['weather_timestamp'] = datetime.now() - CACHE_DURATION - timedelta(minutes=1)
     assert get_cached_data('weather') is None
 
 
-def test_get_cached_data_valid():
+def test_get_cached_data_valid(app_fixture, test_client_fixture):
     """Test getting valid data from cache."""
     test_data = {'temp': 75}
     cache['weather'] = test_data
@@ -75,7 +75,7 @@ def test_get_cached_data_valid():
 
 
 @pytest.mark.asyncio
-async def test_fetch_weather_data_success():
+async def test_fetch_weather_data_success(app_fixture, test_client_fixture):
     """Test successful weather data fetch."""
     mock_response = {
         'currentConditions': {
@@ -100,7 +100,7 @@ async def test_fetch_weather_data_success():
 
 
 @pytest.mark.asyncio
-async def test_fetch_weather_data_cached():
+async def test_fetch_weather_data_cached(app_fixture, test_client_fixture):
     """Test fetching cached weather data."""
     test_data = {
         'temp': 75,
@@ -116,7 +116,7 @@ async def test_fetch_weather_data_cached():
 
 
 @pytest.mark.asyncio
-async def test_get_historical_fires():
+async def test_get_historical_fires(app_fixture, test_client_fixture):
     """Test getting historical fire data."""
     result = await get_historical_fires()
     assert isinstance(result, list)
@@ -126,7 +126,7 @@ async def test_get_historical_fires():
 
 
 @pytest.mark.asyncio
-async def test_get_vegetation_index():
+async def test_get_vegetation_index(app_fixture, test_client_fixture):
     """Test getting vegetation index."""
     result = await get_vegetation_index()
     assert isinstance(result, float)
@@ -134,16 +134,16 @@ async def test_get_vegetation_index():
 
 
 @pytest.mark.asyncio
-async def test_get_soil_moisture():
+async def test_get_soil_moisture(app_fixture, test_client_fixture):
     """Test getting soil moisture."""
     result = await get_soil_moisture()
     assert isinstance(result, float)
     assert 0 <= result <= 1
 
 
-def test_fire_risk_endpoint_success(test_client):
+def test_fire_risk_endpoint_success(app_fixture, test_client_fixture):
     """Test successful fire risk endpoint."""
-    response = test_client.get("/api/fire-risk")
+    response = test_client_fixture.get("/api/fire-risk")
     assert response.status_code == 200
     data = response.json()
     assert 'currentWeather' in data
@@ -152,10 +152,10 @@ def test_fire_risk_endpoint_success(test_client):
     assert 'soilMoisture' in data
 
 
-def test_fire_risk_endpoint_weather_error(test_client):
+def test_fire_risk_endpoint_weather_error(app_fixture, test_client_fixture):
     """Test fire risk endpoint with weather API error."""
     with patch('api.fire_risk.fetch_weather_data',
               side_effect=Exception("API Error")):
-        response = test_client.get("/api/fire-risk")
+        response = test_client_fixture.get("/api/fire-risk")
         assert response.status_code == 500
         assert "API Error" in response.json()['detail']

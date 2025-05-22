@@ -1,4 +1,4 @@
-import { loadScript } from './loadScript';
+import { LoadScript } from './loadScript';
 
 let isLoading = false;
 let isLoaded = false;
@@ -21,7 +21,7 @@ export async function loadGoogleMaps(): Promise<void> {
       throw new Error('Google Maps API key is missing');
     }
 
-    await loadScript(
+    await LoadScript.load(
       `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`,
       'google-maps-script'
     );

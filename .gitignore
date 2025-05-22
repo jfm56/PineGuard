@@ -41,6 +41,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 htmlcov/
+app/htmlcov/
 
 # Project specific
 data/raw/

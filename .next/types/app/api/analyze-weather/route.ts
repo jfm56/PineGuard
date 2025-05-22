@@ -1,4 +1,4 @@
-// File: /Users/jimmullen/CascadeProjects/pinelands-wildfire-app/app/api/analyze-weather/route.ts
+// File: /app/app/api/analyze-weather/route.ts
 import * as entry from '../../../../../app/api/analyze-weather/route.js'
 import type { NextRequest } from 'next/server.js'
 

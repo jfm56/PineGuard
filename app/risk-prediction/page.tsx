@@ -3,7 +3,7 @@
 import React from 'react';
 import WildfireRiskMap from '../routes/wildfire-risk/page';
 
-export default function RiskPredictionPage() {
+export default function RiskPredictionPage(): JSX.Element {
   return (
     <div className="min-h-screen bg-[#1B4332] p-8">
       <h1 className="text-3xl font-bold mb-6 text-white">Wildfire Risk Prediction</h1>

@@ -18,15 +18,21 @@ interface AddressAutocompleteProps {
   className?: string;
 }
 
-type Autocomplete = any;
-type Maps = {
+interface GoogleAutocomplete {
+  getPlace: () => { formatted_address?: string };
+  addListener: (event: string, handler: () => void) => void;
+}
+interface GoogleMaps {
   places: {
-    Autocomplete: new (input: HTMLInputElement, options: any) => Autocomplete;
+    Autocomplete: new (input: HTMLInputElement, options: object) => GoogleAutocomplete;
   };
   event: {
-    clearInstanceListeners: (instance: any) => void;
+    clearInstanceListeners: (instance: GoogleAutocomplete) => void;
   };
-};
+}
+
+type Autocomplete = GoogleAutocomplete;
+type Maps = GoogleMaps;
 
 export default function AddressAutocomplete({
   value,
@@ -34,7 +40,7 @@ export default function AddressAutocomplete({
   placeholder = 'Enter your address',
   required = false,
   className = '',
-}: AddressAutocompleteProps) {
+}: AddressAutocompleteProps): JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +51,7 @@ export default function AddressAutocomplete({
 
   useEffect(() => {
     // Function to handle Google Maps API errors
-    const handleGoogleMapsError = () => {
+    const handleGoogleMapsError = (): void => {
       if (window.google?.maps) {
         const errorDiv = document.createElement('div');
         errorDiv.id = 'google-maps-error';
@@ -53,7 +59,7 @@ export default function AddressAutocomplete({
         document.body.appendChild(errorDiv);
 
         // Listen for Google Maps API errors
-        window.gm_authFailure = () => {
+        window.gm_authFailure = (): void => {
           if (isMountedRef.current) {
             setError('Google Maps API key is invalid. Please check your API key configuration.');
             setIsLoading(false);
@@ -62,7 +68,7 @@ export default function AddressAutocomplete({
       }
     };
 
-    const initAutocomplete = async () => {
+    const initAutocomplete = async (): Promise<void> => {
       try {
         await loadGoogleMaps();
         
@@ -75,7 +81,7 @@ export default function AddressAutocomplete({
           types: ['address'],
         });
 
-        autocompleteRef.current.addListener('place_changed', () => {
+        autocompleteRef.current.addListener('place_changed', (): void => {
           const place = autocompleteRef.current?.getPlace();
           if (place?.formatted_address) {
             onChange(place.formatted_address);
@@ -91,10 +97,10 @@ export default function AddressAutocomplete({
       }
     };
 
-    initAutocomplete();
+    void initAutocomplete();
     handleGoogleMapsError();
 
-    return () => {
+    return (): void => {
       isMountedRef.current = false;
       // Clean up error handler
       if (window.gm_authFailure) {

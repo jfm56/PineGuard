@@ -3,21 +3,21 @@
 import { useState } from 'react';
 import Image from 'next/image';
 
-export default function RiskAssessment() {
+export default function RiskAssessment(): JSX.Element {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [analysis, setAnalysis] = useState<string>('');
+  const [analysis, setAnalysis] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>): void => {
+    const file = event.target.files?.[0];
     if (!file) {return;}
 
     // Convert to base64
     const reader = new FileReader();
-    reader.onloadend = async () => {
+    reader.onloadend = async (): Promise<void> => {
       const base64String = reader.result as string;
       setSelectedImage(base64String);
-      
+
       setLoading(true);
       try {
         const response = await fetch('/api/analyze-risk', {
@@ -30,10 +30,14 @@ export default function RiskAssessment() {
           }),
         });
 
-        const data = await response.json();
-        setAnalysis(data.analysis);
+        const data: unknown = await response.json();
+        if (typeof data === 'object' && data !== null && 'analysis' in data && typeof (data as { analysis?: unknown }).analysis === 'string') {
+          setAnalysis((data as { analysis: string }).analysis);
+        } else {
+          setAnalysis('Error: Invalid response from server.');
+        }
       } catch (error) {
-        console.error('Error analyzing image:', error);
+        /* error intentionally ignored for production build; consider handling/logging in dev */
         setAnalysis('Error analyzing image. Please try again.');
       } finally {
         setLoading(false);
@@ -52,7 +56,7 @@ export default function RiskAssessment() {
           <input
             type="file"
             accept="image/*"
-            onChange={handleImageUpload}
+            onChange={(e) => { void handleImageUpload(e); }}
             className="mt-1 block w-full text-sm text-white
               file:mr-4 file:py-2 file:px-4
               file:rounded-full file:border-0

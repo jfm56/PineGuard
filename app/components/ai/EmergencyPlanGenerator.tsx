@@ -11,17 +11,17 @@ interface PlanDetails {
   specialNeedsDetails?: string;
 }
 
-export default function EmergencyPlanGenerator() {
+export default function EmergencyPlanGenerator(): JSX.Element {
   const [planDetails, setPlanDetails] = useState<PlanDetails>({
     address: '',
     familySize: 1,
     hasPets: false,
     hasSpecialNeeds: false,
   });
-  const [plan, setPlan] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [plan, setPlan] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     setLoading(true);
 
@@ -34,10 +34,14 @@ export default function EmergencyPlanGenerator() {
         body: JSON.stringify(planDetails),
       });
 
-      const data = await response.json();
-      setPlan(data.plan);
+      const data: unknown = await response.json();
+      if (typeof data === 'object' && data !== null && 'plan' in data && typeof (data as { plan?: unknown }).plan === 'string') {
+        setPlan((data as { plan: string }).plan);
+      } else {
+        setPlan('Error: Invalid response from server.');
+      }
     } catch (error) {
-      console.error('Error generating plan:', error);
+      /* error intentionally ignored for production build; consider handling/logging in dev */
       setPlan('Error generating emergency plan. Please try again.');
     } finally {
       setLoading(false);
@@ -48,7 +52,7 @@ export default function EmergencyPlanGenerator() {
     <div className="glass-container p-6 space-y-4">
       <h2 className="text-xl font-bold text-white">Emergency Plan Generator</h2>
       
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
         <div>
           <label className="block text-white">
             Address

@@ -16,16 +16,26 @@ export default function FireRiskAssessment(): JSX.Element {
     const fetchRiskData = async (): Promise<void> => {
       try {
         const response = await fetch('/api/fire_risk');
-        const data = await response.json();
-        setRiskData(data);
+        const data: unknown = await response.json();
+        if (
+          typeof data === 'object' && data !== null &&
+          typeof (data as RiskData).level === 'string' &&
+          typeof (data as RiskData).description === 'string' &&
+          Array.isArray((data as RiskData).recommendations)
+        ) {
+          setRiskData(data as RiskData);
+        } else {
+          setRiskData(null);
+        }
       } catch (error) {
         console.error('Error fetching risk data:', error);
+        setRiskData(null);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchRiskData();
+    void fetchRiskData();
   }, []);
 
   if (loading) {

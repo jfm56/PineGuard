@@ -7,7 +7,7 @@ interface HeaderProps {
   title: string;
 }
 
-export default function Header({ title }: HeaderProps) {
+export default function Header({ title }: HeaderProps): JSX.Element {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (

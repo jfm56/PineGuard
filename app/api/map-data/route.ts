@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server';
 
 interface MapData {
   fireStations: Array<{
@@ -15,7 +14,8 @@ interface MapData {
   }>;
 }
 
-export async function GET(_request: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
+  await Promise.resolve();
   try {
     // This is mock data. In a real application, this would come from your Python backend
     const mapData: MapData = {

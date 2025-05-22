@@ -11,19 +11,11 @@ declare global {
   }
 
   namespace google.maps {
-    class LatLng {
-      private _lat: number;
-      private _lng: number;
-      constructor(lat: number, lng: number) {
-        this._lat = lat;
-        this._lng = lng;
-      }
-      lat(): number { return this._lat; }
-      lng(): number { return this._lng; }
-    }
+    
 
     class Map {
-      addListener(eventName: string, handler: Function): google.maps.MapsEventListener {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-unsafe-assignment
+      addListener(_unused: string, __unused: (...args: unknown[]) => unknown): google.maps.MapsEventListener {
         // Dummy implementation
         return new google.maps.MapsEventListener();
       }
@@ -38,8 +30,9 @@ declare global {
     namespace event {
       function addListener(
         instance: google.maps.Map,
-        eventName: string,
-        handler: Function
+        _: string,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        __unused: (...args: unknown[]) => unknown
       ): google.maps.MapsEventListener;
     }
   }

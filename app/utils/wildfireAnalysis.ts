@@ -141,16 +141,16 @@ export function calculateHistoricalDensity(fires: Wildfire[], grid: GridCell[][]
 
   // Find maximum number of fires in any cell for normalization
   let maxFires = 0;
-  grid.forEach(row => {
-    row.forEach(cell => {
+  grid.forEach((row: GridCell[]): void => {
+    row.forEach((cell: GridCell): void => {
       maxFires = Math.max(maxFires, cell.historicalFires);
     });
   });
 
   // Normalize historical fire density
   if (maxFires > 0) {
-    grid.forEach(row => {
-      row.forEach(cell => {
+    grid.forEach((row: GridCell[]): void => {
+      row.forEach((cell: GridCell): void => {
         cell.riskScore = cell.historicalFires / maxFires;
       });
     });
@@ -168,7 +168,7 @@ export function calculateRiskScore(factors: RiskFactors, cell: GridCell): number
   };
 
   // Calculate weather-based risk
-  const weatherRisk = Object.entries(weatherWeights).reduce((score, [factor, weight]) => {
+  const weatherRisk = Object.entries(weatherWeights).reduce((score: number, [factor, weight]: [string, number]): number => {
     return score + (factors[factor as keyof RiskFactors] * weight);
   }, 0);
 
@@ -199,8 +199,8 @@ export function updateRiskMap(
   calculateHistoricalDensity(fires, grid);
 
   // Update risk scores for each cell
-  grid.forEach(row => {
-    row.forEach(cell => {
+  grid.forEach((row: GridCell[]) => {
+    row.forEach((cell: GridCell) => {
       // Calculate final risk score based on historical density and environmental factors
       cell.riskScore = calculateRiskScore({
         historicalDensity: cell.riskScore, // Use previously calculated historical density

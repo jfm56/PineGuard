@@ -10,7 +10,7 @@ export default function MapControls(): JSX.Element {
     waterSources: false
   });
 
-  const handleLayerChange = (layerName: keyof typeof layers) => {
+  const handleLayerChange = (layerName: keyof typeof layers): void => {
     setLayers(prev => ({
       ...prev,
       [layerName]: !prev[layerName]

@@ -7,24 +7,24 @@ type MapLayersState = {
   isExiting: boolean;
 };
 
-export default class MapLayers extends React.Component<{}, MapLayersState> {
+export default class MapLayers extends React.Component<Record<string, never>, MapLayersState> {
   state: MapLayersState = {
     isVisible: true,
     isExiting: false,
   };
 
-  handleClose = () => {
+  handleClose = (): void => {
     this.setState({ isExiting: true });
     setTimeout(() => {
       this.setState({ isVisible: false, isExiting: false });
     }, 300); // Match animation duration
   };
 
-  handleShow = () => {
+  handleShow = (): void => {
     this.setState({ isVisible: true });
   };
 
-  render() {
+  render(): JSX.Element {
     const { isVisible, isExiting } = this.state;
     return (
       <div className="relative">

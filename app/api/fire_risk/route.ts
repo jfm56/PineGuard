@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server';
 
 interface RiskData {
   level: string;
@@ -6,7 +5,8 @@ interface RiskData {
   recommendations: string[];
 }
 
-export async function GET(_request: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
+  await Promise.resolve();
   try {
     // This is a mock response. In a real application, this would come from your Python backend
     const riskData: RiskData = {

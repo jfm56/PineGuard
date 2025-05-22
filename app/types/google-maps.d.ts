@@ -35,7 +35,7 @@ declare namespace google.maps {
   }
 
   class MVCObject {
-    addListener(eventName: string, handler: Function): google.maps.MapsEventListener;
+    addListener(eventName: string, handler: (...args: unknown[]) => unknown): google.maps.MapsEventListener;
   }
 
   interface MapsEventListener {

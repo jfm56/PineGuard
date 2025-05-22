@@ -7,7 +7,6 @@ export const getWindDirection = (degrees: number): string => {
 };
 
 export const DEFAULT_MAP_OPTIONS = {
-  // @ts-expect-error - Google Maps types are not fully accurate
 
   center: { lat: 39.8283, lng: -74.5411 },
   zoom: 10,

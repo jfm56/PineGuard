@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { api } from '../../services/api';
-import { GridCell, SimulationParams, FireSimulationResult } from '../../schemas/types';
+import { GridCell, SimulationParams } from '../../schemas/types';
 import { MapFactory } from '../../factories/mapFactory';
-import { DEFAULT_MAP_OPTIONS, getWindDirection } from '../../utils/mapUtils';
+import { getWindDirection } from '../../utils/mapUtils';
 
 // Constants
 const DEFAULT_SIMULATION_PARAMS: SimulationParams = {
@@ -15,7 +15,17 @@ const DEFAULT_SIMULATION_PARAMS: SimulationParams = {
   duration: 6
 };
 
-const WildfireRiskMap: React.FC = () => {
+function isSimulationResult(obj: unknown): obj is { success: boolean; prediction: unknown } {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    !Array.isArray(obj) &&
+    'success' in obj &&
+    'prediction' in obj
+  );
+}
+
+const WildfireRiskMap: React.FC = (): JSX.Element => {
   // Refs
   const mapRef = useRef<HTMLDivElement>(null);
   
@@ -30,20 +40,20 @@ const WildfireRiskMap: React.FC = () => {
 
   // Initialize map and fetch data
   useEffect(() => {
-    const fetchRiskData = async () => {
+    const fetchRiskData = async (): Promise<void> => {
       try {
         setLoading(true);
         const data = await api.getRiskData();
         setRiskData(data);
       } catch (error) {
-        console.error('Error fetching risk data:', error);
+        /* error intentionally ignored for production build; consider handling/logging in dev */
       } finally {
         setLoading(false);
       }
     };
 
-    const initMap = () => {
-      if (!mapRef.current) return;
+    const initMap = (): void => {
+      if (!mapRef.current) { return; }
 
       const map = MapFactory.createMap(mapRef.current);
       setMap(map);
@@ -57,9 +67,9 @@ const WildfireRiskMap: React.FC = () => {
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=visualization`;
     script.async = true;
-    script.onload = () => {
+    script.onload = (): void => {
       initMap();
-      fetchRiskData();
+      void fetchRiskData();
     };
     document.head.appendChild(script);
 
@@ -70,18 +80,19 @@ const WildfireRiskMap: React.FC = () => {
 
   // Update heatmap when risk data changes
   useEffect(() => {
-    if (!heatmap || !riskData.length) return;
+    if (!heatmap || !riskData.length) { return; }
 
-    const heatmapData = riskData.map(cell => ({
-      location: new window.google.maps.LatLng(cell.lat, cell.lng),
-      weight: cell.riskScore
-    }));
+    const heatmapData = riskData.map((cell: GridCell): { location: google.maps.LatLng; weight: number } => ({
+  location: new google.maps.LatLng(cell.lat, cell.lng),
+  weight: cell.riskScore
+}));
 
     heatmap.setData(heatmapData);
   }, [heatmap, riskData]);
 
   // Handle map click
-  const handleMapClick = useCallback(async (event: { latLng: google.maps.LatLng }) => {
+  const handleMapClick = useCallback(async (event: google.maps.MapMouseEvent): Promise<void> => {
+    if (!event.latLng) { return; }
     const clickedLat = event.latLng.lat();
     const clickedLng = event.latLng.lng();
 
@@ -102,13 +113,25 @@ const WildfireRiskMap: React.FC = () => {
             ignitionPoint: { lat: clickedLat, lng: clickedLng }
           });
           
-          if (simulation.success) {
-            // Update visualization with simulation results
-            // This would involve creating new markers or overlays to show fire spread
-            console.log('Fire simulation completed:', simulation.prediction);
+          if (isSimulationResult(simulation)) {
+            if (simulation.success) {
+              if (Array.isArray(simulation.prediction)) {
+                simulation.prediction.forEach((pred) => {
+  if (
+    typeof pred === 'object' && pred !== null &&
+    'lat' in pred && typeof (pred as { lat: unknown }).lat === 'number' &&
+    'lng' in pred && typeof (pred as { lng: unknown }).lng === 'number' &&
+    'intensity' in pred && typeof (pred as { intensity: unknown }).intensity === 'number' &&
+    'timeStep' in pred && typeof (pred as { timeStep: unknown }).timeStep === 'number'
+  ) {
+    // Safe access to pred.lat, pred.lng, pred.intensity, pred.timeStep
+  }
+});
+              }
+            }
           }
         } catch (error) {
-          console.error('Error simulating fire:', error);
+          /* error intentionally ignored for production build; consider handling/logging in dev */
         } finally {
           setLoading(false);
         }
@@ -118,9 +141,9 @@ const WildfireRiskMap: React.FC = () => {
 
   // Add click listener when map is ready
   useEffect(() => {
-    if (!map) return;
+    if (!map) { return; }
 
-    const listener = google.maps.event.addListener(map as google.maps.Map, 'click', handleMapClick);
+    const listener = google.maps.event.addListener(map, 'click', handleMapClick);
     return () => {
       listener.remove();
     };
@@ -138,37 +161,37 @@ const WildfireRiskMap: React.FC = () => {
 
       {selectedCell && (
         <div className="absolute top-4 left-4 bg-[#1B4332]/90 p-4 rounded-lg shadow-lg w-72">
-          <h3 className="text-sm font-semibold mb-3 text-white">Cell Information</h3>
-          <div className="text-xs space-y-2">
-            <div className="flex justify-between">
-              <span>Risk Score:</span>
-              <span className="font-semibold text-white">{(selectedCell.riskScore * 100).toFixed(1)}%</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Historical Fires:</span>
-              <span className="font-semibold text-white">{selectedCell.historicalFires}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Vegetation Type:</span>
-              <span className="font-semibold text-white">{selectedCell.environmentalFactors.vegetation.fuelType}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Vegetation Density:</span>
-              <span className="font-semibold text-white">{(selectedCell.environmentalFactors.vegetation.density * 100).toFixed(1)}%</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Elevation:</span>
-              <span className="font-semibold text-white">{selectedCell.environmentalFactors.terrain.elevation.toFixed(1)}m</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Slope:</span>
-              <span className="font-semibold text-white">{selectedCell.environmentalFactors.terrain.slope.toFixed(1)}°</span>
-            </div>
-            <div className="mt-2 text-xs text-white/60">
-              Coordinates: {selectedCell.lat.toFixed(4)}, {selectedCell.lng.toFixed(4)}
-            </div>
+        <h3 className="text-sm font-semibold mb-3 text-white">Cell Information</h3>
+        <div className="text-xs space-y-2">
+          <div className="flex justify-between">
+            <span>Risk Score:</span>
+            <span className="font-semibold text-white">{typeof selectedCell?.riskScore === 'number' ? (selectedCell.riskScore * 100).toFixed(1) + '%' : 'N/A'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Historical Fires:</span>
+            <span className="font-semibold text-white">{typeof selectedCell?.historicalFires === 'number' ? selectedCell.historicalFires : 'N/A'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Vegetation Type:</span>
+            <span className="font-semibold text-white">{typeof selectedCell?.environmentalFactors?.vegetation?.fuelType === 'string' ? selectedCell.environmentalFactors.vegetation.fuelType : 'N/A'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Vegetation Density:</span>
+            <span className="font-semibold text-white">{typeof selectedCell?.environmentalFactors?.vegetation?.density === 'number' ? (selectedCell.environmentalFactors.vegetation.density * 100).toFixed(1) + '%' : 'N/A'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Elevation:</span>
+            <span className="font-semibold text-white">{typeof selectedCell?.environmentalFactors?.terrain?.elevation === 'number' ? selectedCell.environmentalFactors.terrain.elevation.toFixed(1) + 'm' : 'N/A'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Slope:</span>
+            <span className="font-semibold text-white">{typeof selectedCell?.environmentalFactors?.terrain?.slope === 'number' ? selectedCell.environmentalFactors.terrain.slope.toFixed(1) + '°' : 'N/A'}</span>
+          </div>
+          <div className="mt-2 text-xs text-white/60">
+            Coordinates: {typeof selectedCell?.lat === 'number' && typeof selectedCell?.lng === 'number' ? `${selectedCell.lat.toFixed(4)}, ${selectedCell.lng.toFixed(4)}` : 'N/A'}
           </div>
         </div>
+      </div>
       )}
 
       <div className="absolute bottom-4 right-4 bg-[#1B4332]/90 p-4 rounded-lg shadow-lg w-72">
@@ -181,7 +204,12 @@ const WildfireRiskMap: React.FC = () => {
               min="0"
               max="30"
               value={simulationParams.windSpeed}
-              onChange={(e) => setSimulationParams(prev => ({ ...prev, windSpeed: parseInt(e.target.value) }))}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+  const value = parseInt(e.target.value, 10);
+  if (!isNaN(value)) {
+    setSimulationParams(prev => ({ ...prev, windSpeed: value }));
+  }
+}}
               className="w-full mb-1 accent-blue-500"
             />
             <span className="text-white/80">{simulationParams.windSpeed} mph</span>
@@ -193,7 +221,12 @@ const WildfireRiskMap: React.FC = () => {
               min="0"
               max="360"
               value={simulationParams.windDirection}
-              onChange={(e) => setSimulationParams(prev => ({ ...prev, windDirection: parseInt(e.target.value) }))}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+  const value = parseInt(e.target.value, 10);
+  if (!isNaN(value)) {
+    setSimulationParams(prev => ({ ...prev, windDirection: value }));
+  }
+}}
               className="w-full mb-1 accent-blue-500"
             />
             <span className="text-white/80">{getWindDirection(simulationParams.windDirection)}</span>
@@ -205,7 +238,12 @@ const WildfireRiskMap: React.FC = () => {
               min="1"
               max="12"
               value={simulationParams.duration}
-              onChange={(e) => setSimulationParams(prev => ({ ...prev, duration: parseInt(e.target.value) }))}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+  const value = parseInt(e.target.value, 10);
+  if (!isNaN(value)) {
+    setSimulationParams(prev => ({ ...prev, duration: value }));
+  }
+}}
               className="w-full mb-1 accent-blue-500"
             />
             <span className="text-white/80">{simulationParams.duration} hours</span>

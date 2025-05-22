@@ -21,6 +21,7 @@ pip-delete-this-directory.txt
 nosetests.xml
 coverage.xml
 htmlcov/
+app/htmlcov/
 *.cover
 *.log
 
@@ -60,7 +61,9 @@ docs/_build/
 site/
 
 # Local development settings
-.env.local
+# (we need .env.local in the build context, so do NOT ignore it)
+.env
+# leave patterns for other env variants if you wish
 .env.*.local
 
 # Docker

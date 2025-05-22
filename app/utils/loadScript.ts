@@ -20,12 +20,12 @@ export class LoadScript {
       }, 10000); // 10 second timeout
       script.onload = (): void => {
         if (timeoutId) { clearTimeout(timeoutId); }
-        console.log(`Script loaded successfully: ${src}`);
+        
         resolve();
       };
-      script.onerror = (err: Event | string): void => {
+      script.onerror = (): void => {
         if (timeoutId) { clearTimeout(timeoutId); }
-        console.error(`Error loading script ${src}:`, err);
+        
         reject(new Error(`Failed to load script: ${src}`));
       };
       document.head.appendChild(script);
@@ -33,7 +33,3 @@ export class LoadScript {
   }
 }
 
-// Example usage:
-const scriptLoader = new LoadScript();
-// scriptLoader is not strictly necessary since load is static, but demonstrates instance creation.
-// LoadScript.load('https://example.com/script.js');

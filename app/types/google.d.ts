@@ -3,9 +3,7 @@ declare namespace google.maps {
     constructor(mapDiv: Element, opts?: MapOptions);
   }
 
-  class LatLng {
-    constructor(lat: number, lng: number);
-  }
+  
 
   interface MapOptions {
     center: { lat: number; lng: number };

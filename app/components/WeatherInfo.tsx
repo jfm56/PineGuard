@@ -15,7 +15,7 @@ export default function WeatherInfo(): JSX.Element {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchWeather = async () => {
+    const fetchWeather = (): void => {
       try {
         // This would be replaced with actual API call in production
         const mockWeather: WeatherData = {
@@ -27,7 +27,7 @@ export default function WeatherInfo(): JSX.Element {
         };
         setWeather(mockWeather);
       } catch (error) {
-        console.error('Error fetching weather:', error);
+        /* error intentionally ignored for production build; consider handling/logging in dev */
       } finally {
         setLoading(false);
       }

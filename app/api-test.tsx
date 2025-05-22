@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-export default function ApiTest() {
+export default function ApiTest(): JSX.Element {
   const [status, setStatus] = useState<{
     success?: boolean;
     error?: string;
@@ -24,11 +24,15 @@ export default function ApiTest() {
   }>({});
 
   useEffect(() => {
-    const checkApiKey = async () => {
+    const checkApiKey = async (): Promise<void> => {
       try {
         const response = await fetch('/api/verify-google-key');
-        const data = await response.json();
-        setStatus(data);
+        const data: unknown = await response.json();
+        if (typeof data === 'object' && data !== null && 'success' in data) {
+          setStatus(data as typeof status);
+        } else {
+          setStatus({ success: false, error: 'Malformed response from API' });
+        }
       } catch (error) {
         setStatus({ 
           success: false, 
@@ -37,7 +41,7 @@ export default function ApiTest() {
       }
     };
 
-    checkApiKey();
+    void checkApiKey();
   }, []);
 
   return (
@@ -105,7 +109,7 @@ export default function ApiTest() {
                 <li>Enable the Maps JavaScript API in your Google Cloud Console</li>
               )}
               {(status.details?.maps.error?.includes('domain') || status.details?.places.error?.includes('domain')) && (
-                <li>Add localhost:3000 to your API key's allowed domains</li>
+                <li>Add localhost:3000 to your API key&apos;s allowed domains</li>
               )}
             </ul>
           </div>

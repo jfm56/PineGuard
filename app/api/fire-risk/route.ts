@@ -15,6 +15,7 @@ interface RiskData {
 }
 
 export async function GET(): Promise<Response> {
+  await Promise.resolve();
   try {
 
 

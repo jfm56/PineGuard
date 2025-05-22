@@ -15,7 +15,7 @@ export default function RiskAnalysis(): JSX.Element {
   const [loading, setLoading] = useState(false);
 
   const analyzeRisk = useCallback(async () => {
-    if (!riskData) return;
+    if (!riskData) { return; }
 
     setLoading(true);
     try {
@@ -44,13 +44,13 @@ export default function RiskAnalysis(): JSX.Element {
           'Accept': 'application/json'
         }
       });
-      if (!response.ok) {
+      if (!response.ok) { 
         const errorText = await response.text();
         throw new Error(`Failed to fetch risk data: ${response.status} ${errorText}`);
       }
 
       const data = await response.json() as RiskData & { error?: string };
-      if (data.error) {
+      if (data.error) { 
         throw new Error(data.error);
       }
 
@@ -65,12 +65,12 @@ export default function RiskAnalysis(): JSX.Element {
   }, [fetchRiskData]);
 
   useEffect(() => {
-    if (riskData) {
+    if (riskData) { 
       void analyzeRisk();
     }
   }, [riskData, analyzeRisk]);
 
-  if (!riskData) {
+  if (!riskData) { 
     return (
       <div className="glass-container p-6 space-y-4">
         <h2 className="text-xl font-bold text-white">Fire Risk Analysis</h2>

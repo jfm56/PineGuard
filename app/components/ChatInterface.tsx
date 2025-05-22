@@ -7,14 +7,26 @@ interface Message {
   content: string;
 }
 
-export default function ChatInterface() {
+function updateMessages(prev: Message[], assistantMessage: string): Message[] {
+  const newMessages = [...prev];
+  if (newMessages[newMessages.length - 1]?.role === 'assistant') {
+    newMessages[newMessages.length - 1].content = assistantMessage;
+  } else {
+    newMessages.push({ role: 'assistant', content: assistantMessage });
+  }
+  return newMessages;
+}
+
+export default function ChatInterface(): JSX.Element {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-    if (!input.trim()) {return;}
+    if (input.trim().length === 0) {
+      return;
+    }
 
     const userMessage = { role: 'user' as const, content: input };
     setMessages(prev => [...prev, userMessage]);
@@ -41,23 +53,18 @@ export default function ChatInterface() {
       let assistantMessage = '';
 
       if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {break;}
+        let done = false;
+        while (!done) {
+          const { done: isDone, value } = await reader.read();
+          done = isDone;
+          if (done) { break; }
           assistantMessage += decoder.decode(value);
-          setMessages(prev => {
-            const newMessages = [...prev];
-            if (newMessages[newMessages.length - 1]?.role === 'assistant') {
-              newMessages[newMessages.length - 1].content = assistantMessage;
-            } else {
-              newMessages.push({ role: 'assistant', content: assistantMessage });
-            }
-            return newMessages;
-          });
+          setMessages(prev => updateMessages(prev, assistantMessage));
         }
       }
     } catch (error) {
       console.error('Error:', error);
+      setMessages(prev => updateMessages(prev, 'Sorry, I encountered an error. Please try again.'));
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' }]);
     } finally {
       setIsLoading(false);
@@ -86,7 +93,7 @@ export default function ChatInterface() {
           </div>
         )}
       </div>
-      <form onSubmit={handleSubmit} className="flex gap-2">
+      <form onSubmit={(e) => { void handleSubmit(e); }} className="flex gap-2">
         <input
           type="text"
           value={input}

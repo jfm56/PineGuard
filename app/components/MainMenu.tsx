@@ -7,7 +7,7 @@ interface MainMenuProps {
   onClose: () => void;
 }
 
-export default function MainMenu({ onClose }: MainMenuProps) {
+export default function MainMenu({ onClose }: MainMenuProps): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
 
   return (

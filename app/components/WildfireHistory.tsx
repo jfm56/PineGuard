@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Wildfire } from '../types/wildfire';
 import { wildfires } from '../data/wildfires';
 
-export default function WildfireHistory() {
+export default function WildfireHistory(): JSX.Element {
   const [selectedFire, setSelectedFire] = useState<Wildfire | null>(null);
   const [sortField, setSortField] = useState<keyof Pick<Wildfire, 'startDate' | 'name' | 'size'>>('startDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -27,7 +27,7 @@ export default function WildfireHistory() {
       : a[sortField].localeCompare(b[sortField]);
   });
 
-  const handleSort = (field: typeof sortField) => {
+  const handleSort = (field: typeof sortField): void => {
     if (field === sortField) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {

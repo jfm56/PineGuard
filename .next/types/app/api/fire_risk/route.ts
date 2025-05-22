@@ -1,4 +1,4 @@
-// File: /Users/jimmullen/CascadeProjects/pinelands-wildfire-app/app/api/fire_risk/route.ts
+// File: /app/app/api/fire_risk/route.ts
 import * as entry from '../../../../../app/api/fire_risk/route.js'
 import type { NextRequest } from 'next/server.js'
 
