@@ -8,6 +8,8 @@ services:
     container_name: pinelands-wildfire-app
     env_file:
       - .env.local
+    environment:
+      - IN_DOCKER=1
     ports:
       - "3000:3000"
     volumes:
@@ -28,12 +30,16 @@ services:
     working_dir: /app
     env_file:
       - .env.local
+    environment:
+      - IN_DOCKER=1
     ports:
       - "8000:8000"
     volumes:
       - .:/app
+      - /Users/jimmullen/Downloads/pinelands:/app/pinelands:ro
+      - /Users/jimmullen/CascadeProjects/pinelands-wildfire-app/National_Interagency_Fire_Occurrence_Sixth_Edition_1992-2020_(Feature_Layer).csv:/app/data/raw/fire_occurrence.csv:ro
     command: >
-      uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - db
 

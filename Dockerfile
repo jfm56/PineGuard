@@ -22,12 +22,20 @@ WORKDIR /app
 # 1) Setup conda environment with geospatial & app deps
 RUN conda install -y \
       -c conda-forge \
-      -c pytorch \
       python=3.11 \
-      fastapi uvicorn slowapi numpy pandas geopandas shapely rasterio \
-      catboost albumentations opencv \
-      pytest pytest-cov pytest-asyncio optuna pytorch && \
-    pip install shap opencv-python-headless && \
+      pytorch \
+      lightgbm \
+      numpy pandas geopandas shapely rasterio \
+      fastapi uvicorn slowapi \
+      pytest pytest-cov pytest-asyncio optuna && \
+    pip install \
+      catboost \
+      lightgbm \
+      albumentations \
+      shap \
+      opencv-python-headless \
+      segmentation-models-pytorch \
+      transformers && \
     conda clean -afy
 
 # 2) Debug

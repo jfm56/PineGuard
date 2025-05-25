@@ -12,8 +12,15 @@ from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 
 from app.api import fire_risk, map_data  # Import the fire risk and map data modules
+from app.api.fire_prediction import router as fire_prediction_router  # Fire prediction endpoint
 
 from app.logger import logger, log_action, log_api_request, log_error
+
+import os
+import sys
+if os.getenv("IN_DOCKER") != "1":
+    sys.stderr.write("Error: Application must be run inside Docker only\n")
+    sys.exit(1)
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -34,6 +41,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Include the routers
 app.include_router(fire_risk.router)
 app.include_router(map_data.router)
+app.include_router(fire_prediction_router)
 
 @app.get("/")
 async def read_root():
@@ -167,12 +175,7 @@ async def predict_risk(area: Area, analysis_mode: str = "basic", request: Reques
                 "water_sources": 0.4,
                 "fire_stations": 0.3,
                 "evacuation_routes": 0.6,
-                "communication_towers": 0.5,
-                "critical_facilities": {
-                    "hospitals": 0.3,
-                    "schools": 0.4,
-                    "emergency_shelters": 0.5
-                }
+                "communication_towers": 0.5
             }
         else:
             infrastructure_risk = {
@@ -181,11 +184,12 @@ async def predict_risk(area: Area, analysis_mode: str = "basic", request: Reques
                 "fuel_types": 0.8
             }
         
-        # Calculate overall risk score
+        # Calculate overall risk score, ensuring only numeric infrastructure values are averaged
+        infra_vals = [v for v in infrastructure_risk.values() if isinstance(v, (int, float))]
         risk_factors = {
             "environmental": sum(environmental_factors.values()) / len(environmental_factors),
             "historical": historical_data["fire_frequency"],
-            "infrastructure": sum(infrastructure_risk.values()) / len(infrastructure_risk)
+            "infrastructure": sum(infra_vals) / len(infra_vals) if infra_vals else 0
         }
         
         risk_score = sum(risk_factors.values()) / len(risk_factors)
@@ -194,59 +198,12 @@ async def predict_risk(area: Area, analysis_mode: str = "basic", request: Reques
         # Generate mode-specific recommendations
         if analysis_mode == "professional":
             recommendations = [
-                {
-                    "priority": "high",
-                    "action": "Clear firebreaks",
-                    "location": {
-                        "type": "LineString",
-                        "coordinates": [[area.area_geometry["coordinates"][0][0][0], area.area_geometry["coordinates"][0][0][1]],
-                                      [area.area_geometry["coordinates"][0][0][0] + 0.1, area.area_geometry["coordinates"][0][0][1]]]
-                    },
-                    "estimated_cost": 50000,
-                    "time_frame": "1 month",
-                    "resources_needed": {
-                        "equipment": ["bulldozers", "chainsaws", "water trucks"],
-                        "personnel": 20,
-                        "permits_required": ["environmental", "local"]
-                    },
-                    "impact_assessment": {
-                        "environmental": "moderate",
-                        "effectiveness": 0.8
-                    }
-                },
-                {
-                    "priority": "medium",
-                    "action": "Controlled burn",
-                    "location": {
-                        "type": "Polygon",
-                        "coordinates": [area.coordinates]
-                    },
-                    "estimated_cost": 75000,
-                    "time_frame": "3 months",
-                    "resources_needed": {
-                        "equipment": ["fire engines", "hand tools", "drip torches"],
-                        "personnel": 35,
-                        "permits_required": ["fire", "air quality", "environmental"]
-                    },
-                    "weather_requirements": {
-                        "wind_speed": "< 15 mph",
-                        "humidity": "> 30%",
-                        "temperature": "< 85°F"
-                    }
-                }
+                {"priority": "high", "action": "Clear firebreaks", "time_frame": "1 month"},
+                {"priority": "medium", "action": "Controlled burn", "time_frame": "3 months"},
             ]
         else:
             recommendations = [
-                {
-                    "priority": "high",
-                    "action": "Clear firebreaks",
-                    "location": {
-                        "type": "LineString",
-                        "coordinates": [[area.area_geometry["coordinates"][0][0][0], area.area_geometry["coordinates"][0][0][1]],
-                                      [area.area_geometry["coordinates"][0][0][0] + 0.1, area.area_geometry["coordinates"][0][0][1]]]
-                    },
-                    "time_frame": "1 month"
-                }
+                {"priority": "high", "action": "Clear firebreaks", "time_frame": "1 month"},
             ]
         
         return {
@@ -262,7 +219,7 @@ async def predict_risk(area: Area, analysis_mode: str = "basic", request: Reques
     except Exception as e:
         log_error(e, {
             "analysis_mode": analysis_mode,
-            "coordinates": area.coordinates,
+            "coordinates": area.area_geometry["coordinates"],
         })
         raise HTTPException(status_code=500, detail=str(e))
 

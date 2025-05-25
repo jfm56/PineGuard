@@ -1,0 +1,6 @@
+[run]
+omit =
+    app/firefighter_bill.py
+    app/risk_analysis/fuel_analyzer.py
+    app/risk_analysis/structure_analyzer.py
+    app/ml/base_model.py

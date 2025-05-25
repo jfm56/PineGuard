@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Any
 
 import numpy as np
 import optuna
@@ -60,15 +60,16 @@ class EnsembleWildfireModel(BaseModel):
         
         # Optimize hyperparameters using Optuna
         study = optuna.create_study(direction='maximize')
-        study.optimize(lambda trial: self._objective(trial, X_processed, y), 
-                      n_trials=50)
+        study.optimize(lambda trial: self._objective(trial, X_processed, y), n_trials=50)
         
         # Train models with best parameters
         metrics = {}
+        # prevent cv splits > samples
+        n_samples = len(X_processed)
+        cv_folds = min(5, n_samples)
         for name, model in self.models.items():
             model.set_params(**study.best_params[name])
-            model.fit(X_processed, y)
-            score = cross_val_score(model, X_processed, y, cv=5).mean()
+            score = cross_val_score(model, X_processed, y, cv=cv_folds).mean()
             metrics[f'{name}_cv_score'] = score
         
         # Calculate feature importance using SHAP
@@ -97,9 +98,12 @@ class EnsembleWildfireModel(BaseModel):
         }
         
         scores = []
+        # prevent cv splits > samples
+        n_samples = len(X)
+        cv_folds = min(5, n_samples)
         for name, model in self.models.items():
             model.set_params(**params[name])
-            score = cross_val_score(model, X, y, cv=5).mean()
+            score = cross_val_score(model, X, y, cv=cv_folds).mean()
             scores.append(score)
         
         return np.mean(scores)
@@ -125,3 +129,8 @@ class EnsembleWildfireModel(BaseModel):
         
         importance_df['mean_importance'] = importance_df.mean(axis=1)
         return importance_df.sort_values('mean_importance', ascending=False)
+
+    def generate_alerts(self, prediction: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Generate alerts based on risk predictions."""
+        # Default stub for alert generation
+        return []

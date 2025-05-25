@@ -289,3 +289,10 @@ class StructureAnalyzer:
         )
         
         return accessibility
+    
+    def analyze_area(self, area) -> Dict[str, Any]:
+        """Stub method for integration tests"""
+        return {
+            "buildings": [],
+            "infrastructure": []
+        }

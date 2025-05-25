@@ -4,16 +4,16 @@ from app.main import app
 
 
 @pytest.fixture(scope="module")
-def test_client():
+def client():
     with TestClient(app) as client:
         yield client
 
-def test_health_check(test_client_fixture):
-    response = test_client.get("/health")
+def test_health_check(client):
+    response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "healthy"}
 
-def test_risk_prediction(test_client_fixture):
+def test_risk_prediction(client):
     test_area = {
         "area_geometry": {
             "type": "Polygon",
@@ -28,7 +28,7 @@ def test_risk_prediction(test_client_fixture):
         "date": "2025-04-08"
     }
    
-    response = test_client.post("/api/v1/predict", json=test_area)
+    response = client.post("/api/v1/predict", json=test_area)
     assert response.status_code == 200
    
     data = response.json()
@@ -37,9 +37,9 @@ def test_risk_prediction(test_client_fixture):
     assert "confidence" in data
     assert "risk_factors" in data
 
-def test_camping_site_analysis(test_client_fixture):
+def test_camping_site_analysis(client):
     site_id = "TEST001"
-    response = test_client.get(f"/api/v1/camping-sites/{site_id}/risk")
+    response = client.get(f"/api/v1/camping-sites/{site_id}/risk")
     assert response.status_code == 200
    
     data = response.json()
@@ -47,7 +47,7 @@ def test_camping_site_analysis(test_client_fixture):
     assert "max_capacity" in data
     assert "evacuation_time" in data
 
-def test_structure_analysis(test_client_fixture):
+def test_structure_analysis(client):
     test_buildings = {
         "buildings": {
             "type": "FeatureCollection",
@@ -73,7 +73,7 @@ def test_structure_analysis(test_client_fixture):
         "include_surroundings": True
     }
    
-    response = test_client.post("/api/v1/structures/analyze", json=test_buildings)
+    response = client.post("/api/v1/structures/analyze", json=test_buildings)
     assert response.status_code == 200
    
     data = response.json()
@@ -81,9 +81,9 @@ def test_structure_analysis(test_client_fixture):
     assert len(data["buildings"]) > 0
     assert "risk_score" in data["buildings"][0]
 
-def test_traffic_analysis(test_client_fixture):
+def test_traffic_analysis(client):
     area_id = "AREA001"
-    response = test_client.get(f"/api/v1/traffic/analysis?area={area_id}")
+    response = client.get(f"/api/v1/traffic/analysis?area={area_id}")
     assert response.status_code == 200
    
     data = response.json()
@@ -96,20 +96,20 @@ def test_traffic_analysis(test_client_fixture):
     {"area_geometry": "invalid"},
     {"date": "2025-13-45"},
 ])
-def test_invalid_risk_prediction(test_client_fixture, invalid_area):
-    response = test_client.post("/api/v1/predict", json=invalid_area)
+def test_invalid_risk_prediction(client, invalid_area):
+    response = client.post("/api/v1/predict", json=invalid_area)
     assert response.status_code == 422
 
-def test_rate_limiting(test_client_fixture):
+def test_rate_limiting(client):
     # Reset rate limiter before test
     app.state.limiter.reset()
    
     # First 10 requests should succeed
     for _ in range(10):
-        response = test_client.get("/health")
+        response = client.get("/health")
         assert response.status_code == 200
    
     # 11th request should fail with 429 Too Many Requests
-    response = test_client.get("/health")
+    response = client.get("/health")
     assert response.status_code == 429
     assert "Rate limit exceeded" in response.text

@@ -1,6 +1,26 @@
 {
   "sortedMiddleware": [],
   "middleware": {},
-  "functions": {},
+  "functions": {
+    "/api/generate-plan/route": {
+      "files": [
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/app/api/generate-plan/route.js"
+      ],
+      "name": "app/api/generate-plan/route",
+      "page": "/api/generate-plan/route",
+      "matchers": [
+        {
+          "regexp": "^/api/generate\\-plan$",
+          "originalSource": "/api/generate-plan"
+        }
+      ],
+      "wasm": [],
+      "assets": []
+    }
+  },
   "version": 2
 }

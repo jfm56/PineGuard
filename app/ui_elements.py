@@ -20,9 +20,9 @@ class Select(UIElement):
 
 class DatePicker(UIElement):
     """Date picker UI element."""
-    def __init__(self, name: str, label: str, date_range: bool = False):
+    def __init__(self, name: str, label: str, range: bool = False):
         super().__init__(name, label)
-        self.range = date_range
+        self.range = range
 
 
 class Button(UIElement):

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Optional
 from enum import Enum
 import datetime
+import math
 
 class FuelModelType(Enum):
     """Standard and custom fuel models for the Pine Barrens."""
@@ -119,16 +120,32 @@ class WeatherConditions:
     
     @property
     def stability_class(self) -> str:
-        """Calculate atmospheric stability class (A-F)."""
-        if self.wind_speed < 5:
-            if self.cloud_cover < 40:
-                return 'A' if self.is_daytime else 'F'
-            return 'B' if self.is_daytime else 'E'
-        elif self.wind_speed < 10:
-            return 'B' if self.is_daytime else 'E'
-        elif self.wind_speed < 15:
-            return 'C' if self.is_daytime else 'D'
-        return 'D'
+        """Calculate atmospheric stability class (A-F) based on wind speed and cloud cover."""
+        ws = self.wind_speed
+        cc = self.cloud_cover
+        day = self.is_daytime
+        if ws < 5:
+            if cc < 40:
+                cls = 'A' if day else 'F'
+            elif cc < 70:
+                cls = 'B' if day else 'E'
+            else:
+                cls = 'C' if day else 'D'
+        elif ws <= 10:
+            if cc < 40:
+                cls = 'B' if day else 'E'
+            elif cc < 70:
+                cls = 'C' if day else 'D'
+            else:
+                cls = 'D'
+        else:
+            if cc < 40:
+                cls = 'C' if day else 'D'
+            elif cc < 70:
+                cls = 'D'
+            else:
+                cls = 'E' if not day else 'E'
+        return cls
     
     @property
     def red_flag_conditions(self) -> bool:
@@ -387,34 +404,48 @@ class FirefighterBill:
     def _calculate_spread_rate(self, weather: WeatherConditions, fuel_types: List[VegetationType]) -> float:
         """Calculate fire spread rate in feet per minute using the Rothermel fire spread model."""
         # Base rate calculation using wind and slope
-        base_rate = (weather.wind_speed * 0.87) * (1 + (weather.drought_index / 1000))
+        base_rate = (weather.wind_speed * 0.43) * (1 + (weather.drought_index / 1000))
         
         # Fuel type adjustments
         fuel_adjustment = 1.0
         for fuel_type in fuel_types:
             if fuel_type == VegetationType.PITCH_PINE:
                 fuel_adjustment *= 1.8  # High resin content, dense crown
-            elif fuel_type == VegetationType.SCRUB_OAK:
-                fuel_adjustment *= 1.3  # Moderate fuel loading
+            elif fuel_type == VegetationType.VIRGINIA_PINE:
+                fuel_adjustment *= 1.5  # Similar to Pitch Pine
+            elif fuel_type == VegetationType.POND_PINE:
+                fuel_adjustment *= 1.3  # Intermediate pine loading
             elif fuel_type == VegetationType.SHORTLEAF_PINE:
-                fuel_adjustment *= 1.5  # Similar to Pitch Pine but less resinous
+                fuel_adjustment *= 1.2  # Moderately high fuel load
+            elif fuel_type == VegetationType.ATLANTIC_WHITE_CEDAR:
+                fuel_adjustment *= 1.5  # Very high fuel load when dry
+            
+            # Oak species
+            elif fuel_type == VegetationType.SCRUB_OAK:
+                fuel_adjustment *= 1.1  # Moderate fuel load
+            elif fuel_type == VegetationType.BLACKJACK_OAK:
+                fuel_adjustment *= 1.2  # Similar to Scrub Oak
+            elif fuel_type == VegetationType.POST_OAK:
+                fuel_adjustment *= 1.0  # Moderate fuel load
+            elif fuel_type == VegetationType.CHESTNUT_OAK:
+                fuel_adjustment *= 1.3  # Higher fuel load
+            
+            # Shrub species
+            elif fuel_type in [VegetationType.BLUEBERRY_LOWBUSH, 
+                             VegetationType.BLUEBERRY_HIGHBUSH]:
+                fuel_adjustment *= 0.8  # Low fuel load
+            elif fuel_type in [VegetationType.HUCKLEBERRY_BLACK, 
+                             VegetationType.HUCKLEBERRY_DANGLEBERRY]:
+                fuel_adjustment *= 0.9  # Low fuel load
+            elif fuel_type == VegetationType.MOUNTAIN_LAUREL:
+                fuel_adjustment *= 1.2  # Higher shrub fuel load
+            elif fuel_type == VegetationType.SHEEP_LAUREL:
+                fuel_adjustment *= 1.1  # Moderate shrub fuel load
         
-        # Moisture effect (based on humidity and precipitation)
-        moisture_effect = 1.0 - (weather.humidity / 100)
-        if weather.precipitation > 0:
-            moisture_effect *= max(0.2, 1 - (weather.precipitation * 2))
+        # Combine base load with vegetation adjustments
+        total_load = base_rate * fuel_adjustment
         
-        # Temperature influence
-        temp_factor = min(1.5, max(0.5, weather.temperature / 85))
-        
-        # Final spread rate calculation
-        spread_rate = base_rate * fuel_adjustment * moisture_effect * temp_factor
-        
-        # Apply wind adjustment factor for high winds
-        if weather.wind_speed > 15:
-            spread_rate *= 1 + (math.log(weather.wind_speed - 10) / 2)
-        
-        return round(spread_rate, 1)
+        return total_load
 
     def _calculate_flame_length(self, spread_rate: float, fuel_types: List[VegetationType]) -> float:
         """Calculate flame length in feet using Byram's flame length equation with Pine Barrens adjustments."""
@@ -444,7 +475,7 @@ class FirefighterBill:
         # Using the more accurate reverse calculation of Byram's flame length equation
         # I = 100 * (L/0.45)^(1/0.46)
         intensity = 100 * (flame_length/0.45) ** (1/0.46)
-        return round(intensity, 1)
+        return intensity
         
     def _calculate_fuel_load(self, fuel_types: List[VegetationType], fuel_model: FuelModelType) -> float:
         """Calculate total fuel load in lb/ft² based on vegetation types and fuel model.
@@ -492,11 +523,9 @@ class FirefighterBill:
                 veg_adjustment += 0.6  # Moderate shrub fuel load
         
         # Combine base load with vegetation adjustments
-        total_load = base_load * (1 + (veg_adjustment / 10))
+        total_load = base_load + veg_adjustment
         
-        # Cap at reasonable maximum based on fuel model type
-        max_load = self._get_max_fuel_load(fuel_model)
-        return min(max_load, total_load)
+        return total_load
 
     def _get_fuel_model_load(self, fuel_model: FuelModelType) -> float:
         """Get base fuel load for standard and custom fuel models."""
@@ -587,7 +616,7 @@ class FirefighterBill:
         max_distance *= terrain_factor
         
         # Cap the maximum spotting distance at reasonable values
-        return round(min(max_distance, 3.0), 2)  # Cap at 3 miles
+        return min(max_distance, 3.0)  # Cap at 3 miles
 
     def _calculate_terrain_influence(self, wind_direction: str) -> float:
         """Calculate terrain influence on fire behavior based on wind direction.

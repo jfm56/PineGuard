@@ -11,7 +11,7 @@ class DummyModel(base_model.BaseModel):
     def predict(self, X):
         return [0 for _ in X]
     def fit(self, X, y):
-        pass
+        raise NotImplementedError
 
 def test_base_model_instantiation():
     model = DummyModel()

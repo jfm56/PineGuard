@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 from shapely.geometry import Point
 from app.prediction import WildfirePredictor
 from app.risk_category import RiskCategory
+import pytest
 
 @pytest.fixture
 def sample_data():

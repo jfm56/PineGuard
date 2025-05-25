@@ -115,6 +115,12 @@ PineGuard employs a multi-layered approach to wildfire risk prediction and visua
 - Historical wildfire data overlay
 - Interactive controls for risk analysis
 
+### 6. Predictive Modeling
+- Uses the National Interagency Fire Occurrence dataset (1992–2020) processed via DataLoader
+- Implements RandomForest, LightGBM, and CatBoost models
+- Leverages environmental metrics, land cover data, and historical fire counts as features
+- Produces wildfire risk scores with confidence estimates
+
 ## Installation
 
 ### Development Setup
